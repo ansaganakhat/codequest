@@ -175,6 +175,10 @@ class UserPatch(Strict):
 class SchoolData(Strict):
     name:str=Field(min_length=4,max_length=200)
     city:str=Field(default='',max_length=100)
+class SubjectData(Strict):
+    name_kk:str=Field(min_length=3,max_length=90)
+    name_ru:str=Field(min_length=3,max_length=90)
+    name_en:str=Field(min_length=3,max_length=90)
 def password_hash(p):
     salt=secrets.token_bytes(16)
     d=hashlib.pbkdf2_hmac('sha256',p.encode(),salt,310000)
@@ -419,4 +423,28 @@ def disable_school(id:int,u:User=Depends(current_user),db:Session=Depends(db_ses
     role(u,'admin');s=db.get(School,id)
     if not s:raise HTTPException(404,'school_not_found')
     s.active=False;audit(db,u,'deactivate','school',id);commit(db)
+    return {'ok':True}
+
+@app.post('/api/admin/subjects',status_code=201)
+def admin_add_subject(p:SubjectData,u:User=Depends(current_user),db:Session=Depends(db_session)):
+    role(u,'admin')
+    x=Subject(**p.model_dump())
+    db.add(x);commit(db);db.refresh(x);audit(db,u,'create','subject',x.id);commit(db)
+    return dict(id=x.id,kk=x.name_kk,ru=x.name_ru,en=x.name_en)
+@app.patch('/api/admin/subjects/{id}')
+def admin_edit_subject(id:int,p:SubjectData,u:User=Depends(current_user),db:Session=Depends(db_session)):
+    role(u,'admin')
+    x=db.get(Subject,id)
+    if not x:raise HTTPException(404,'subject_not_found')
+    for k,v in p.model_dump().items():setattr(x,k,v)
+    audit(db,u,'update','subject',id);commit(db)
+    return dict(id=x.id,kk=x.name_kk,ru=x.name_ru,en=x.name_en)
+@app.delete('/api/admin/subjects/{id}')
+def admin_delete_subject(id:int,u:User=Depends(current_user),db:Session=Depends(db_session)):
+    role(u,'admin')
+    x=db.get(Subject,id)
+    if not x:raise HTTPException(404,'subject_not_found')
+    if db.scalar(select(TeacherSubject.id).where(TeacherSubject.subject_id==id)):
+        raise HTTPException(409,'subject_assigned')
+    audit(db,u,'delete','subject',id);db.delete(x);commit(db)
     return {'ok':True}

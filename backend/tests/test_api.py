@@ -62,7 +62,18 @@ def test_registration_approval_scoping_and_photos():
                 assert teacher.get('/api/students').json()[0]['grade']==7
                 assert administrator.post('/api/admin/schools',json={'name':'Demo School X','city':'Astana'}).status_code==201
                 assert administrator.patch('/api/admin/users/'+str(teacher_id),json={'phone':'+77013334455'}).status_code==200
+                newsub=administrator.post('/api/admin/subjects',json={'name_kk':'Робототехника','name_ru':'Робототехника','name_en':'Robotics'})
+                assert newsub.status_code==201,newsub.text
+                assert administrator.patch('/api/admin/subjects/'+str(newsub.json()['id']),json={'name_kk':'Робототехника','name_ru':'Робототехника','name_en':'Robotics Lab'}).status_code==200
+                assert administrator.delete('/api/admin/subjects/'+str(newsub.json()['id'])).status_code==200
                 assert teacher.get('/api/admin/users').status_code==403
+                with TestClient(app) as other_school:
+                    other=register(other_school,'teacher','other_teacher@example.test','99010130021',school=2)
+                    assert other.status_code==201,other.text
+                    other_id=other.json()['id']
+                    assert administrator.patch('/api/admin/users/'+str(other_id),json={'status':'approved'}).status_code==200
+                    assert other_school.get('/api/students').json()==[]
+                    assert other_school.get('/api/students/'+str(cid)+'/photo').status_code==404
 
 def test_validation_roles_and_origins():
     with TestClient(app) as client:
@@ -73,4 +84,9 @@ def test_validation_roles_and_origins():
         p['role']='parent'
         assert client.post('/api/auth/register',json=p,headers={'Origin':'https://attacker.invalid'}).status_code==403
         p['iin']='123'
+        assert client.post('/api/auth/register',json=p).status_code==422
+
+def test_consent_required():
+    with TestClient(app) as client:
+        p={'role':'parent','full_name':'Test No Consent','iin':iin('99123140021'),'phone':'+77011234567','email':'no-consent@example.test','password':'SecurePassword123!'}
         assert client.post('/api/auth/register',json=p).status_code==422
