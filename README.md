@@ -1,4 +1,6 @@
-# CodeQuest AI — мектептік платформа (MVP v0.2)
+# CodeQuest AI — мектептік платформа (MVP v0.3)
+
+**Firebase сынақ интеграциясы дайын:** [FIREBASE_SETUP.md](FIREBASE_SETUP.md). Firebase веб-конфигурациясы қосылмайынша онлайн сайт қауіпсіз preview режимінде қалады. Firebase сынағы ЖСН және балалардың фотоларын қабылдамайды. Бұрынғы FastAPI/Supabase коды жойылған жоқ.
 
 Қазақша негізгі, орысша және ағылшынша қосымша. Teacher / Parent / Admin.
 

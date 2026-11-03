@@ -1,19 +1,24 @@
 {
   "name": "codequest-ai",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
-    "preview": "vite preview --host 0.0.0.0"
+    "preview": "vite preview --host 0.0.0.0",
+    "firebase:seed": "node scripts/firebase-seed.mjs",
+    "firebase:admin": "node scripts/firebase-set-admin.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^4.3.4",
     "vite": "^6.0.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "lucide-react": "^0.468.0"
+    "lucide-react": "^0.468.0",
+    "firebase": "^13.1.0"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "firebase-admin": "^13.5.0"
+  }
 }
