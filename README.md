@@ -1,5 +1,52 @@
-# CodeQuest AI
+# CodeQuest AI — мектептік платформа (MVP v0.2)
 
-Gamified informatics learning platform (Kazakh-first).
+Қазақша негізгі, орысша және ағылшынша қосымша. Teacher / Parent / Admin.
 
-This repository is being populated with the teacher–parent–admin registration and school directory MVP.
+## Implemented
+- Мұғалім тіркелуі: аты-жөні, ЖСН, телефон, email, құпиясөз, мектеп, бір немесе бірнеше пән. Әкімші растағанша оқушылар тізіміне рұқсат жоқ.
+- Ата-ана тіркелуі, өз баласын ЖСН, аты-жөні, сыныбы, мектебі бойынша қосу, өңдеу және фото жүктеу. Баланың дерегі әкімші растағанша каталогта көрінбейді.
+- Әкімші: пайдаланушы мен оқушының дерегін өңдеу, растау, қабылдамау, мектеп қосу және өңдеу, қажет болса жазбаны жою.
+- Мұғалім: тек өзі бекітілген мектептегі расталған оқушыларды іздеу, олардың аты-жөнін, сыныбын, мектебін, фотосын көру. ЖСН мұғалім интерфейсіне/API жауабына берілмейді.
+- PostgreSQL немесе SQLite. Қорғалған фото, шифрланған ЖСН (Fernet), ЖСН-ді қайталатпау үшін HMAC, пароль хеші, HTTP-only cookie.
+
+## Launch (Windows PowerShell)
+Install Python 3.11+ and Node.js 20+.
+
+Clone this repo: https://github.com/ansaganakhat/codequest
+Open the backend directory and run:
+
+    py -3.11 -m venv .venv
+    .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+    Copy-Item .env.example .env
+
+Generate an encryption key:
+
+    .\.venv\Scripts\python.exe -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+
+Put that key in backend/.env after IIN_ENCRYPTION_KEY=. Back it up securely; losing it makes saved IDs unreadable. Do not commit secrets.
+
+    .\.venv\Scripts\python.exe create_admin.py
+    .\.venv\Scripts\python.exe -m uvicorn app:app --reload
+
+Open a second terminal in frontend/:
+
+    npm install
+    npm run dev
+
+Open http://localhost:5173 . Backend documentation: http://localhost:8000/docs
+
+Initially 3 demo schools appear. Add your own actual schools through the admin panel.
+
+## Persistent PostgreSQL
+Set DATABASE_URL to postgresql+psycopg://USER:PASSWORD@HOST:5432/DATABASE in backend/.env. Optional local docker compose file included.
+Database tables: users, schools, subjects, teacher_subjects, students, sessions, audit_logs.
+SQLite defaults to ./codequest.db in the backend working directory.
+
+## Tests
+Within backend/: python -m pytest -q
+
+## Important privacy and release warning
+Do not put real children's identifiers into a public demo before verifying the guardian-child relationship, school staff affiliation, consent requirements and operational security. Teacher approvals and student verification in this MVP are manual administrator actions; confirming email/phone ownership is not yet built. Public GitHub contains SOURCE CODE ONLY; real data stays on your configured database. Real deployment needs persistent private image/object storage, backup, secure TLS cookies, HTTPS and migrations.
+
+Not yet implemented: lesson editor, CV games, learning analytics, child self-login, reset-password, production-grade identity proofing.
+Figma: https://www.figma.com/design/k3xOHYIZFouKkdZji9OIgj/Untitled?node-id=3-6
