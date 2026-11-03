@@ -55,6 +55,7 @@ class User(Base):
     school:Mapped[School|None]=relationship()
     teacher_subjects:Mapped[list['TeacherSubject']]=relationship(cascade='all, delete-orphan')
     created_at:Mapped[datetime]=mapped_column(DateTime,default=utc)
+    consented_at:Mapped[datetime|None]=mapped_column(DateTime,nullable=True)
 class TeacherSubject(Base):
     __tablename__='teacher_subjects'
     id:Mapped[int]=mapped_column(primary_key=True)
@@ -132,6 +133,7 @@ class Register(Strict):
     password:str=Field(min_length=10,max_length=128)
     school_id:int|None=None
     subject_ids:list[int]=Field(default_factory=list)
+    consent:bool=False
     _n=field_validator('full_name')(valid_name)
     _i=field_validator('iin')(valid_iin)
     _p=field_validator('phone')(valid_phone)
@@ -245,6 +247,7 @@ def subjects(db:Session=Depends(db_session)):
     return [dict(id=x.id,kk=x.name_kk,ru=x.name_ru,en=x.name_en) for x in db.scalars(select(Subject).order_by(Subject.id))]
 @app.post('/api/auth/register',status_code=201)
 def register(p:Register,response:Response,db:Session=Depends(db_session)):
+    if not p.consent:raise HTTPException(422,'consent_required')
     if db.scalar(select(User.id).where(User.email==p.email)):raise HTTPException(409,'email_taken')
     if p.role=='teacher':
         if p.school_id is None:raise HTTPException(422,'select_school')
@@ -252,7 +255,7 @@ def register(p:Register,response:Response,db:Session=Depends(db_session)):
     elif p.school_id is not None:school_required(db,p.school_id)
     enc,digest=crypto(p.iin)
     if db.scalar(select(User.id).where(User.iin_hash==digest)):raise HTTPException(409,'iin_taken')
-    u=User(full_name=p.full_name,email=p.email,phone=p.phone,password_hash=password_hash(p.password),iin_encrypted=enc,iin_hash=digest,role=p.role,status='pending' if p.role=='teacher' else 'approved',school_id=p.school_id)
+    u=User(full_name=p.full_name,email=p.email,phone=p.phone,password_hash=password_hash(p.password),iin_encrypted=enc,iin_hash=digest,role=p.role,status='pending' if p.role=='teacher' else 'approved',school_id=p.school_id,consented_at=utc())
     db.add(u);db.flush()
     if p.role=='teacher':
         for sid in p.subject_ids:db.add(TeacherSubject(teacher_id=u.id,subject_id=sid))

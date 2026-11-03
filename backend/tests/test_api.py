@@ -16,7 +16,7 @@ def iin(prefix):
         if check<10:return prefix+str(check)
     raise RuntimeError('bad test prefix')
 def register(client,role,email,number,school=1):
-    return client.post('/api/auth/register',json={'role':role,'full_name':'Demo Test Person','iin':iin(number),'phone':'+77011234567','email':email,'password':'SecurePassword123!','school_id':school if role=='teacher' else None,'subject_ids':[1] if role=='teacher' else []})
+    return client.post('/api/auth/register',json={'role':role,'full_name':'Demo Test Person','iin':iin(number),'phone':'+77011234567','email':email,'password':'SecurePassword123!','school_id':school if role=='teacher' else None,'subject_ids':[1] if role=='teacher' else [],'consent':True})
 def admin(db):
     a=User(full_name='System Administrator',email='admin@example.test',password_hash=password_hash('AdminPassword123!'),role='admin',status='approved')
     db.add(a);db.commit()
@@ -66,7 +66,7 @@ def test_registration_approval_scoping_and_photos():
 
 def test_validation_roles_and_origins():
     with TestClient(app) as client:
-        p={'role':'admin','full_name':'Bad Role User','iin':iin('99010130011'),'phone':'+77011234567','email':'x@example.test','password':'SecurePassword123!'}
+        p={'role':'admin','full_name':'Bad Role User','iin':iin('99010130011'),'phone':'+77011234567','email':'x@example.test','password':'SecurePassword123!','consent':True}
         assert client.post('/api/auth/register',json=p).status_code==422
         p['role']='teacher';p['subject_ids']=[];p['school_id']=1
         assert client.post('/api/auth/register',json=p).status_code==422

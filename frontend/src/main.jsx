@@ -53,7 +53,7 @@ function Auth({tr,lang,setLang,onAuth,schools,subjects}){
   if(mode==='register'&&data.password.length<10){setError(tr('passwordRule'));return}
   if(mode==='register'&&role==='teacher'&&!data.subject_ids.length){setError(tr('selectSubject'));return}
   setBusy(true);
-  try{const u=mode==='login'?await api.login({email:data.email,password:data.password}):await api.register({...data,role,school_id:role==='teacher'?data.school_id:null,subject_ids:role==='teacher'?data.subject_ids:[]});onAuth(u)}
+  try{const u=mode==='login'?await api.login({email:data.email,password:data.password}):await api.register({...data,role,consent:true,school_id:role==='teacher'?data.school_id:null,subject_ids:role==='teacher'?data.subject_ids:[]});onAuth(u)}
   catch(e){setError(e.message==='wrong_credentials'?tr('wrongCredentials'):e.message==='network'?tr('network'):(ERROR[e.message]||e.message))}
   finally{setBusy(false)}
  }
@@ -125,8 +125,8 @@ function App(){
  {(view==='lessons'||view==='missions')&&<section className="coming"><div><Camera size={45}/></div><h2>{tr(view==='missions'?'missions':'lessons')}</h2><p>{tr('futureDescription')}</p><span>{tr('future')}</span></section>}
  {view==='settings'&&<section className="panel"><div className="section-head"><h2>{tr('account')}</h2></div><p><b>{user.full_name}</b></p><p>{user.email} · {user.phone}</p><p>{user.school_name||''}</p><div className="alert info">{tr('safeNotice')}</div></section>}
  </main></div>
- {editor?.kind==='child'&&<StudentEditor record={editor.record} tr={tr} schools={schools} admin={isAdmin} onClose={()=>setEditor(null)} onSave={v=>isAdmin?api.editStudent(editor.record.id,v):editor.record?api.patchChild(editor.record.id,v):api.addChild(v)}/>}
- {editor?.kind==='user'&&<UserEditor record={editor.record} tr={tr} schools={schools} subjects={subjects} lang={lang} onClose={()=>setEditor(null)} onSave={v=>api.editUser(editor.record.id,v)}/>}
+ {editor?.kind==='child'&&<StudentEditor record={editor.record} tr={tr} schools={schools} admin={isAdmin} onClose={()=>setEditor(null)} onSave={async v=>{await (isAdmin?api.editStudent(editor.record.id,v):editor.record?api.patchChild(editor.record.id,v):api.addChild(v));await reload()}}/>}
+ {editor?.kind==='user'&&<UserEditor record={editor.record} tr={tr} schools={schools} subjects={subjects} lang={lang} onClose={()=>setEditor(null)} onSave={async v=>{await api.editUser(editor.record.id,v);await reload()}}/>}
  {editor?.kind==='school'&&<SchoolEditor school={editor.record} tr={tr} onClose={()=>setEditor(null)} onSave={async v=>{const r=editor.record?await api.editSchool(editor.record.id,v):await api.addSchool(v);setSchools(await api.schools());return r}}/>}
  {message&&<div className="toast" role="status">{message}<button onClick={()=>setMessage('')}><X size={17}/></button></div>}
  </div>
