@@ -10,3 +10,12 @@
 .field-warning{font-size:11px;color:#c24961;font-weight:600}
 .input-icon input[aria-invalid="true"]{color:#bc3c55}
 @media(min-width:1000px){.auth-left{overflow-y:auto}.auth-card{margin-top:20px;margin-bottom:20px}}
+
+/* Child registration: email-verification guidance and accessible actions */
+.email-verification-box{display:grid;gap:11px;border:1px solid #f3dfad;background:#fffaf0;border-radius:13px;padding:13px}
+.email-verification-box .alert{padding:0;background:transparent;align-items:flex-start;line-height:1.55}
+.email-verification-box .alert svg{flex:0 0 auto}
+.verification-actions{display:flex;gap:9px;flex-wrap:wrap}
+.tiny-action{min-height:39px;padding:9px 12px;background:#fff;border:1px solid #d9d9ef;border-radius:10px;color:#5848b6;font-weight:700;display:inline-flex;align-items:center;gap:8px;font-size:12px}
+.tiny-action:hover{background:#f5f2ff;border-color:#8b76ee}
+.tiny-action:disabled{opacity:.5;cursor:default}

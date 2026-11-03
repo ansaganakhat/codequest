@@ -130,8 +130,16 @@ export const firebaseApi={
   async logout(){await signOut(auth);return {ok:true}},
   async resendVerification(){
     const u=requireUser();
+    await u.reload();
     if(!u.emailVerified)await sendEmailVerification(u);
-    return {ok:true};
+    return {ok:true,already_verified:u.emailVerified};
+  },
+  async refreshVerification(){
+    const u=requireUser();
+    await u.reload();
+    // Refresh the token's email_verified claim used by Firestore security rules.
+    await u.getIdToken(true);
+    return await ownProfile();
   },
   async dashboard(){
     const p=await requireRole('teacher','parent','admin');

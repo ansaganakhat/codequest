@@ -11,6 +11,7 @@ if(!uid || uid.length<8){throw new Error('Pass a valid Firebase Auth UID');}
 initializeApp({credential:applicationDefault()});
 const auth=getAuth();
 const user=await auth.getUser(uid);
+if(!user.email || !user.emailVerified)throw new Error('Verify the administrator email in Firebase Authentication before granting admin privileges.');
 const db=getFirestore();
 const ref=db.doc('users/'+uid);
 const existing=await ref.get();
