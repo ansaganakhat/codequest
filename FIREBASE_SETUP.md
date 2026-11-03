@@ -8,6 +8,18 @@ The Firebase web configuration for project `codequest-1bfc6` is already included
 
 The existing Netlify site is built with Firebase web configuration, but remains a safe preview if Firestore or its access rules are unavailable. This integration uses the official Firebase JavaScript SDK and needs no ChatGPT integration.
 
+## IMPORTANT — registration launch checklist
+
+Firebase browser config is connected, but sign-up stays **intentionally disabled** by `VITE_FIREBASE_REGISTRATION_ENABLED=false` in `frontend/.env.production`.
+Before opening registration to even synthetic/test accounts:
+1. Create Firestore database (production mode, not test mode).
+2. Publish and verify the repository's `firestore.rules`; confirm public reads for schools/subjects and deny student/user data cross-role.
+3. Enable Firebase Authentication Email/Password; authorize `codequest-ai-ansagan.netlify.app`.
+4. Seed public schools and subject collections from trusted Admin SDK context.
+5. Provision a trusted admin account with the provided CLI script and Firebase custom claim.
+6. After all checks pass, change `VITE_FIREBASE_REGISTRATION_ENABLED=true`, commit and let Netlify redeploy.
+
+Because this site's Netlify environment-variable update endpoint returned HTTP 403, the public Firebase web configuration and the non-secret rollout flag are managed in the checked-in `frontend/.env.production` file.
 ## Implemented
 - Firebase Authentication: email/password sign-up/login/logout and verification emails.
 - Firestore collections: users, students, schools, subjects.
