@@ -6,7 +6,7 @@
 import { initializeApp } from 'firebase/app';
 import {
   getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
-  signOut, sendEmailVerification,
+  signOut, sendEmailVerification, deleteUser,
 } from 'firebase/auth';
 import {
   getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc,
@@ -111,6 +111,10 @@ export const firebaseApi={
     try {
       await setDoc(userRef(created.user.uid),profile);
     }catch(err){
+      // Avoid leaving an orphan Firebase Auth login when Firestore rules or database setup fails.
+      try { await deleteUser(created.user); } catch (cleanupError) {
+        console.error('Could not clean up incomplete Firebase registration', cleanupError.code);
+      }
       await signOut(auth);
       throw err;
     }

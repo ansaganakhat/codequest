@@ -10,14 +10,14 @@ The existing Netlify site is built with Firebase web configuration, but remains 
 
 ## IMPORTANT — registration launch checklist
 
-Firebase browser config is connected, but sign-up stays **intentionally disabled** by `VITE_FIREBASE_REGISTRATION_ENABLED=false` in `frontend/.env.production`.
+Firebase web config is connected and the limited **test registration** gate is set to `VITE_FIREBASE_REGISTRATION_ENABLED=true` in `frontend/.env.production`, based on the project owner's confirmation that Firestore rules were published. The website still checks public Firestore catalogue read access before enabling its buttons. **Actual live signup has not yet been manually verified.**
 Before opening registration to even synthetic/test accounts:
 1. Create Firestore database (production mode, not test mode).
 2. Publish and verify the repository's `firestore.rules`; confirm public reads for schools/subjects and deny student/user data cross-role.
 3. Enable Firebase Authentication Email/Password; authorize `codequest-ai-ansagan.netlify.app`.
 4. Seed public schools and subject collections from trusted Admin SDK context.
 5. Provision a trusted admin account with the provided CLI script and Firebase custom claim.
-6. After all checks pass, change `VITE_FIREBASE_REGISTRATION_ENABLED=true`, commit and let Netlify redeploy.
+6. Limited test sign-up is already flagged on for this Firebase project. Confirm Email/Password is Enabled, verify the Rules are exactly as committed, and test with **fictional adult accounts only** before production use.
 
 Because this site's Netlify environment-variable update endpoint returned HTTP 403, the public Firebase web configuration and the non-secret rollout flag are managed in the checked-in `frontend/.env.production` file.
 ## Implemented
