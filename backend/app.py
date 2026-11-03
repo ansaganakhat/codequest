@@ -155,6 +155,7 @@ class ChildPatch(Strict):
     grade:int|None=Field(default=None,ge=1,le=11)
     class_letter:str|None=None
     school_id:int|None=None
+    parent_id:int|None=None
     status:Literal['pending','approved','rejected']|None=None
     _n=field_validator('full_name')(lambda v:valid_name(v) if v is not None else None)
     _i=field_validator('iin')(lambda v:valid_iin(v) if v is not None else None)
@@ -306,11 +307,15 @@ def add_child(p:ChildData,u:User=Depends(current_user),db:Session=Depends(db_ses
     db.add(s);commit(db);db.refresh(s);return student_out(s)
 def edit_student(s,p,u,db,is_admin=False):
     changes=p.model_dump(exclude_unset=True)
-    if not is_admin and 'status' in changes:raise HTTPException(403,'admin_only_status')
+    if not is_admin and ('status' in changes or 'parent_id' in changes):raise HTTPException(403,'admin_only_fields')
     for k,v in changes.items():
         if v is None:continue
         if k=='iin':s.iin_encrypted,s.iin_hash=crypto(v)
         elif k=='school_id':school_required(db,v);s.school_id=v
+        elif k=='parent_id':
+            p=db.get(User,v)
+            if not is_admin or not p or p.role!='parent':raise HTTPException(422,'parent_not_found')
+            s.parent_id=v
         elif k in ('full_name','grade','class_letter','status'):setattr(s,k,v.strip().upper() if k=='class_letter' else v)
     if not is_admin:s.status='pending'
     audit(db,u,'update','student',s.id);commit(db);return student_out(s)
