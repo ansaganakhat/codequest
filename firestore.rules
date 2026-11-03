@@ -19,6 +19,7 @@ service cloud.firestore {
     function verifiedTeacherFor(student) {
       return myProfileExists() &&
         myProfile().role == 'teacher' &&
+        request.auth.token.email_verified == true &&
         myProfile().status == 'approved' &&
         myProfile().school_id == student.school_id &&
         student.status == 'approved';

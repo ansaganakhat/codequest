@@ -50,8 +50,9 @@ async function fetchPublic(path, fallback) {
     if(snaps.empty)return fallback;
     return snaps.docs.map(s=>({...s.data(),id:Number(s.id)||s.id}));
   }catch(err){
-    if(err.code==='permission-denied')throw err;
-    return fallback;
+    // A configured Firebase backend must not silently fall back when the
+    // connection, database or Firestore rules are unavailable.
+    throw err;
   }
 }
 const requireUser=()=>{

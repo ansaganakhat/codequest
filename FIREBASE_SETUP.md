@@ -1,6 +1,12 @@
-# CodeQuest AI — Firebase integration (optional)
+# CodeQuest AI — Firebase integration (CodeQuest AI web app configured)
 
-The existing Netlify site stays in safe preview mode until Firebase web configuration is supplied. This integration uses the official Firebase JavaScript SDK and needs no ChatGPT integration.
+The Firebase web configuration for project `codequest-1bfc6` is already included in `frontend/.env.production`. These values are **public client identifiers**, not administrator credentials. No Netlify environment-variable access is necessary to build the Firebase app.
+
+**To enable registrations:** Firebase Console → Authentication → Sign-in method → Email/Password (enable); Firestore Database (create if missing); Firestore Database → Rules → paste `firestore.rules` from this repository → Publish. Then create the first trusted admin and seed school/subject catalogues following the steps below. Only publish rules you have reviewed for your intended deployment. **Never enable Firestore test mode.**
+
+
+
+The existing Netlify site is built with Firebase web configuration, but remains a safe preview if Firestore or its access rules are unavailable. This integration uses the official Firebase JavaScript SDK and needs no ChatGPT integration.
 
 ## Implemented
 - Firebase Authentication: email/password sign-up/login/logout and verification emails.
@@ -61,7 +67,7 @@ This grants Firebase Auth custom claim admin:true and sets the profile to approv
 
 ## 6. Activate in Netlify
 Open https://app.netlify.com/projects/codequest-ai-ansagan → Environment variables.
-Create all four VITE_FIREBASE_* variables using your project's public web config, with build scope, then redeploy production.
+The project's public web config is already committed in frontend/.env.production and deployed through GitHub. You do NOT need to repeat the Netlify environment-variable step.
 The site is https://codequest-ai-ansagan.netlify.app . Without config it remains catalogue-only preview.
 
 ## Important release restrictions
