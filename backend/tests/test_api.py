@@ -16,7 +16,7 @@ def iin(prefix):
         if check<10:return prefix+str(check)
     raise RuntimeError('bad test prefix')
 def register(client,role,email,number,school=1):
-    return client.post('/api/auth/register',json={'role':role,'full_name':'Demo Test Person','iin':iin(number),'phone':'+77011234567','email':email,'password':'SecurePassword123!','school_id':school if role=='teacher' else None,'subject_ids':[1] if role=='teacher' else [],'consent':True})
+    return client.post('/api/auth/register',json={'role':role,'last_name':'Demo','first_name':'Person','middle_name':'Test','iin':iin(number),'phone':'+77011234567','email':email,'password':'SecurePassword123!','password_confirm':'SecurePassword123!','school_id':school if role=='teacher' else None,'subject_ids':[1] if role=='teacher' else [],'consent':True})
 def admin(db):
     a=User(full_name='System Administrator',email='admin@example.test',password_hash=password_hash('AdminPassword123!'),role='admin',status='approved')
     db.add(a);db.commit()
@@ -24,11 +24,21 @@ def admin(db):
 def test_registration_approval_scoping_and_photos():
     with TestClient(app) as parent:
         schools=parent.get('/api/schools').json()
-        assert len(schools)==3
+        assert len(schools)>=13
+        names=[s['name_kk'] for s in schools]
+        assert any('№17' in n for n in names)
+        assert any(s.get('address_ru')=='ул. Желтоксан, 9' for s in schools)
+        assert any(s.get('district_en')=='Yesil' for s in schools)
+        subjects=parent.get('/api/subjects').json()
+        assert len(subjects)==17
+        assert any('Бастауыш сынып мұғалімі'==s['kk'] for s in subjects)
         assert parent.get('/api/children').status_code==401
         r=register(parent,'parent','parent@example.test','99123140011')
         assert r.status_code==201,r.text
         assert r.json()['role']=='parent' and 'iin' not in r.json()
+        assert r.json()['last_name']=='Demo'
+        assert r.json()['first_name']=='Person'
+        assert r.json()['middle_name']=='Test'
         assert register(parent,'parent','p2@example.test','99123140011').status_code==409
         child=parent.post('/api/children',json={'full_name':'Demo School Child','iin':iin('14010150001'),'grade':6,'class_letter':'Ә','school_id':1})
         assert child.status_code==201,child.text
@@ -77,7 +87,7 @@ def test_registration_approval_scoping_and_photos():
 
 def test_validation_roles_and_origins():
     with TestClient(app) as client:
-        p={'role':'admin','full_name':'Bad Role User','iin':iin('99010130011'),'phone':'+77011234567','email':'x@example.test','password':'SecurePassword123!','consent':True}
+        p={'role':'admin','last_name':'Bad','first_name':'User','middle_name':'Role','iin':iin('99010130011'),'phone':'+77011234567','email':'x@example.test','password':'SecurePassword123!','consent':True}
         assert client.post('/api/auth/register',json=p).status_code==422
         p['role']='teacher';p['subject_ids']=[];p['school_id']=1
         assert client.post('/api/auth/register',json=p).status_code==422
@@ -88,5 +98,22 @@ def test_validation_roles_and_origins():
 
 def test_consent_required():
     with TestClient(app) as client:
-        p={'role':'parent','full_name':'Test No Consent','iin':iin('99123140021'),'phone':'+77011234567','email':'no-consent@example.test','password':'SecurePassword123!'}
+        p={'role':'parent','full_name':'Test No Consent','iin':iin('99123140021'),'phone':'+77011234567','email':'no-consent@example.test','password':'SecurePassword123!','password_confirm':'SecurePassword123!'}
         assert client.post('/api/auth/register',json=p).status_code==422
+
+
+def test_password_confirmation_and_name_validation():
+    with TestClient(app) as client:
+        valid={'role':'parent','last_name':'Тегі','first_name':'Аты','middle_name':'Әкесінің','iin':iin('99010130012'),'phone':'+77011234567','email':'verify@example.test','password':'SecurePassword123!','password_confirm':'AnotherPassword123!','consent':True}
+        mismatch=client.post('/api/auth/register',json=valid)
+        assert mismatch.status_code==422
+        assert mismatch.json()['detail']=='password_mismatch'
+        valid['password_confirm']=valid['password']
+        valid['last_name']='X'
+        assert client.post('/api/auth/register',json=valid).status_code==422
+        valid['last_name']='Ұзынов'
+        response=client.post('/api/auth/register',json=valid)
+        assert response.status_code==201, response.text
+        assert response.json()['full_name']=='Ұзынов Аты Әкесінің'
+        assert response.json()['last_name']=='Ұзынов'
+        assert 'password_confirm' not in response.json()

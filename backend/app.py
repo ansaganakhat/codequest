@@ -11,7 +11,7 @@ from fastapi import FastAPI, Depends, HTTPException, Request, Response, UploadFi
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator, ConfigDict
-from sqlalchemy import create_engine, event, select, func, ForeignKey, String, Integer, DateTime, Boolean
+from sqlalchemy import create_engine, event, select, func, ForeignKey, String, Integer, DateTime, Boolean, inspect, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker, Session
 
@@ -33,6 +33,15 @@ class School(Base):
     id:Mapped[int]=mapped_column(primary_key=True)
     name:Mapped[str]=mapped_column(String(200),unique=True)
     city:Mapped[str]=mapped_column(String(100),default='')
+    name_kk:Mapped[str|None]=mapped_column(String(200),nullable=True)
+    name_ru:Mapped[str|None]=mapped_column(String(200),nullable=True)
+    name_en:Mapped[str|None]=mapped_column(String(200),nullable=True)
+    address_kk:Mapped[str|None]=mapped_column(String(250),nullable=True)
+    address_ru:Mapped[str|None]=mapped_column(String(250),nullable=True)
+    address_en:Mapped[str|None]=mapped_column(String(250),nullable=True)
+    district_kk:Mapped[str|None]=mapped_column(String(100),nullable=True)
+    district_ru:Mapped[str|None]=mapped_column(String(100),nullable=True)
+    district_en:Mapped[str|None]=mapped_column(String(100),nullable=True)
     active:Mapped[bool]=mapped_column(Boolean,default=True)
 class Subject(Base):
     __tablename__='subjects'
@@ -44,6 +53,9 @@ class User(Base):
     __tablename__='users'
     id:Mapped[int]=mapped_column(primary_key=True)
     full_name:Mapped[str]=mapped_column(String(130))
+    last_name:Mapped[str|None]=mapped_column(String(80),nullable=True)
+    first_name:Mapped[str|None]=mapped_column(String(80),nullable=True)
+    middle_name:Mapped[str|None]=mapped_column(String(80),nullable=True)
     email:Mapped[str]=mapped_column(String(254),unique=True,index=True)
     phone:Mapped[str|None]=mapped_column(String(16))
     password_hash:Mapped[str]=mapped_column(String(255))
@@ -113,6 +125,16 @@ def valid_name(v):
     v=' '.join(v.split())
     if len(v)<3:raise ValueError('invalid_name')
     return v
+def valid_name_part(v):
+    v=' '.join(v.split())
+    if not 2<=len(v)<=80 or any(ch.isdigit() for ch in v):raise ValueError('invalid_name_part')
+    return v
+
+def compose_name(last,first,middle):
+    value=' '.join(x for x in (last,first,middle) if x)
+    if len(value)>130:raise HTTPException(422,'full_name_too_long')
+    return value
+
 def valid_phone(v):
     v=re.sub(r'[\s\-()]','',v)
     if re.fullmatch(r'8[0-9]{10}',v):return '+7'+v[1:]
@@ -126,15 +148,20 @@ def valid_email(v):
 class Strict(BaseModel):model_config=ConfigDict(extra='forbid')
 class Register(Strict):
     role:Literal['teacher','parent']
-    full_name:str=Field(min_length=3,max_length=130)
+    last_name:str=Field(min_length=2,max_length=80)
+    first_name:str=Field(min_length=2,max_length=80)
+    middle_name:str=Field(default='',max_length=80)
     iin:str
     phone:str
     email:str
     password:str=Field(min_length=10,max_length=128)
+    password_confirm:str=Field(min_length=10,max_length=128)
     school_id:int|None=None
     subject_ids:list[int]=Field(default_factory=list)
     consent:bool=False
-    _n=field_validator('full_name')(valid_name)
+    _last=field_validator('last_name')(valid_name_part)
+    _first=field_validator('first_name')(valid_name_part)
+    _middle=field_validator('middle_name')(lambda v:valid_name_part(v) if v.strip() else '')
     _i=field_validator('iin')(valid_iin)
     _p=field_validator('phone')(valid_phone)
     _e=field_validator('email')(valid_email)
@@ -161,6 +188,9 @@ class ChildPatch(Strict):
     _i=field_validator('iin')(lambda v:valid_iin(v) if v is not None else None)
 class UserPatch(Strict):
     full_name:str|None=None
+    last_name:str|None=None
+    first_name:str|None=None
+    middle_name:str|None=None
     iin:str|None=None
     phone:str|None=None
     email:str|None=None
@@ -169,6 +199,9 @@ class UserPatch(Strict):
     school_id:int|None=None
     subject_ids:list[int]|None=None
     _n=field_validator('full_name')(lambda v:valid_name(v) if v is not None else None)
+    _last=field_validator('last_name')(lambda v:valid_name_part(v) if v is not None else None)
+    _first=field_validator('first_name')(lambda v:valid_name_part(v) if v is not None else None)
+    _middle=field_validator('middle_name')(lambda v:valid_name_part(v) if v is not None and v.strip() else '')
     _i=field_validator('iin')(lambda v:valid_iin(v) if v is not None else None)
     _p=field_validator('phone')(lambda v:valid_phone(v) if v is not None else None)
     _e=field_validator('email')(lambda v:valid_email(v) if v is not None else None)
@@ -216,22 +249,56 @@ def commit(db):
 def audit(db,user,operation,entity,id):
     db.add(Audit(actor_id=user.id,operation=operation,entity=entity,entity_id=id))
 def user_out(u):
-    return dict(id=u.id,full_name=u.full_name,email=u.email,phone=u.phone,role=u.role,status=u.status,school_id=u.school_id,school_name=u.school.name if u.school else None,subject_ids=[s.subject_id for s in u.teacher_subjects])
+    return dict(id=u.id,full_name=u.full_name,last_name=u.last_name,first_name=u.first_name,middle_name=u.middle_name,email=u.email,phone=u.phone,role=u.role,status=u.status,school_id=u.school_id,school_name=u.school.name if u.school else None,subject_ids=[s.subject_id for s in u.teacher_subjects])
+def school_out(s):
+    return dict(id=s.id,name=s.name,city=s.city,name_kk=s.name_kk or s.name,name_ru=s.name_ru or s.name,name_en=s.name_en or s.name,address_kk=s.address_kk or '',address_ru=s.address_ru or '',address_en=s.address_en or '',district_kk=s.district_kk or '',district_ru=s.district_ru or '',district_en=s.district_en or '')
+
+def ensure_new_columns():
+    # Idempotent, additive migration for databases created with the original MVP.
+    additions={'schools':{'name_kk':'VARCHAR(200)','name_ru':'VARCHAR(200)','name_en':'VARCHAR(200)','address_kk':'VARCHAR(250)','address_ru':'VARCHAR(250)','address_en':'VARCHAR(250)','district_kk':'VARCHAR(100)','district_ru':'VARCHAR(100)','district_en':'VARCHAR(100)'},'users':{'last_name':'VARCHAR(80)','first_name':'VARCHAR(80)','middle_name':'VARCHAR(80)','consented_at':'DATETIME'}}
+    with engine.begin() as conn:
+        for table_name,columns in additions.items():
+            existing={c['name'] for c in inspect(conn).get_columns(table_name)}
+            for column,sqltype in columns.items():
+                if column not in existing:
+                    conn.execute(text(f'ALTER TABLE {table_name} ADD COLUMN {column} {sqltype}'))
+
 def student_out(s):
     return dict(id=s.id,full_name=s.full_name,grade=s.grade,class_letter=s.class_letter,school_id=s.school_id,school_name=s.school.name,parent_id=s.parent_id,status=s.status,photo_url='/api/students/'+str(s.id)+'/photo' if s.photo_name else None)
 def visible(s,u):
     return u.role=='admin' or (u.role=='parent' and s.parent_id==u.id) or (u.role=='teacher' and u.status=='approved' and s.status=='approved' and u.school_id==s.school_id)
+SCHOOL_CATALOGUE=[[1,"№1 мектеп-лицейі","Школа-лицей № 1","School-Lyceum No. 1","Желтоқсан көшесі, 9","ул. Желтоксан, 9","9 Zheltoksan Street","Сарыарқа","Сарыарка","Saryarka"],[2,"Ғафу Қайырбеков атындағы №2 мектеп-гимназиясы","Школа-гимназия № 2 им. Гафу Кайырбекова","School-Gymnasium No. 2 named after Gafu Kairbekov","Сейфуллин көшесі, 19","ул. Сейфуллина, 19","19 Seifullin Street","Сарыарқа","Сарыарка","Saryarka"],[3,"№3 мектеп-гимназиясы","Школа-гимназия № 3","School-Gymnasium No. 3","Республика даңғылы, 35","пр. Республики, 35","35 Republic Avenue","Сарыарқа","Сарыарка","Saryarka"],[4,"Жамбыл Жабаев атындағы №4 мектеп-гимназиясы","Школа-гимназия № 4 им. Жамбыла Жабаева","School-Gymnasium No. 4 named after Zhambyl Zhabayev","Шәкен Айманов көшесі, 3","ул. Шакена Айманова, 3","3 Shaken Aimanov Street","Байқоңыр","Байконыр","Baikonyr"],[5,"№5 гимназиясы","Гимназия № 5","Gymnasium No. 5","Жәнібек Тархан көшесі, 16","ул. Жанибека Тархана, 16","16 Zhanibek Tarkhan Street","Байқоңыр","Байконыр","Baikonyr"],[6,"№6 гимназиясы","Гимназия № 6","Gymnasium No. 6","Бөгенбай батыр даңғылы, 47/1","пр. Богенбай батыра, 47/1","47/1 Bogenbai Batyr Avenue","Сарыарқа","Сарыарка","Saryarka"],[7,"Ғали Орманов атындағы №7 мектеп-гимназиясы","Школа-гимназия № 7 им. Гали Орманова","School-Gymnasium No. 7 named after Gali Ormanov","Бөгенбай батыр даңғылы, 57","пр. Богенбай батыра, 57","57 Bogenbai Batyr Avenue","Сарыарқа","Сарыарка","Saryarka"],[8,"№8 мектеп-лицейі","Школа-лицей № 8","School-Lyceum No. 8","Сейфуллин көшесі, 50","ул. Сейфуллина, 50","50 Seifullin Street","Байқоңыр","Байконыр","Baikonyr"],[9,"№9 «Зерде» мамандандырылған мектебі","Специализированная школа № 9 «Зерде»","Specialized School No. 9 'Zerde'","Сарыарқа даңғылы, 20","пр. Сарыарка, 20","20 Saryarka Avenue","Сарыарқа","Сарыарка","Saryarka"],[10,"Жұмабек Тәшенев атындағы №10 мектеп-гимназиясы","Школа-гимназия № 10 им. Жумабека Ташенева","School-Gymnasium No. 10 named after Zhumabek Tashenev","Мәлік Ғабдуллин көшесі, 7","ул. Малика Габдуллина, 7","7 Malik Gabdullin Street","Байқоңыр","Байконыр","Baikonyr"],[11,"Өзбекәлі Жәнібеков атындағы №11 мектеп-лицейі","Школа-лицей № 11 им. Узбекали Жанибекова","School-Lyceum No. 11 named after Uzbekali Zhanibekov","Абай даңғылы, 6","пр. Абая, 6","6 Abai Avenue","Сарыарқа","Сарыарка","Saryarka"],[16,"Төлеген Айбергенов атындағы №16 орта мектебі","Средняя школа № 16 им. Толегена Айбергенова","Secondary School No. 16 named after Tolegen Aibergenov","Кенесары көшесі, 81","ул. Кенесары, 81","81 Kenesary Street","Байқоңыр","Байконыр","Baikonyr"],[17,"Ақан Құрманов атындағы №17 мектеп-гимназиясы","Школа-гимназия № 17 им. Акана Курманова","School-Gymnasium No. 17 named after Akan Kurmanov","Қабанбай батыр даңғылы, 9/1","пр. Кабанбай батыра, 9/1","9/1 Kabanbai Batyr Avenue","Есіл","Есиль","Yesil"]]
+SUBJECT_CATALOGUE=[["Қазақ тілі мен әдебиеті мұғалімі","Учитель казахского языка и литературы","Kazakh Language and Literature Teacher","Қазақ тілі"],["Орыс тілі мен әдебиеті мұғалімі","Учитель русского языка и литературы","Russian Language and Literature Teacher","Орыс тілі"],["Ағылшын тілі мұғалімі","Учитель английского языка","English Language Teacher","Ағылшын тілі"],["Математика мұғалімі","Учитель математики","Mathematics Teacher","Математика"],["Информатика мұғалімі","Учитель информатики","Computer Science Teacher","Информатика"],["Физика мұғалімі","Учитель физики","Physics Teacher","Физика"],["Химия мұғалімі","Учитель химии","Chemistry Teacher","Химия"],["Биология мұғалімі","Учитель биологии","Biology Teacher","Биология"],["География мұғалімі","Учитель географии","Geography Teacher","География"],["Тарих мұғалімі","Учитель истории Казахстана и всемирной истории","History Teacher",""],["Құқық негіздері және ғаламдық құзыреттілік мұғалімі","Учитель основ права и глобальных компетенций","Law and Global Competencies Teacher",""],["Дене шынықтыру мұғалімі","Учитель физической культуры","Physical Education Teacher",""],["Көркем еңбек және технология мұғалімі","Учитель художественного труда и технологии","Arts and Technology Teacher",""],["Музыка мұғалімі","Учитель музыки","Music Teacher",""],["Бейнелеу өнері мұғалімі","Учитель изобразительного искусства","Visual Arts Teacher",""],["Алғашқы әскери және технологиялық дайындық жетекшісі","Преподаватель начальной военной и технологической подготовки","Initial Military and Technological Training Instructor",""],["Бастауыш сынып мұғалімі","Учитель начальных классов","Primary School Teacher",""]]
+
 @asynccontextmanager
 async def lifespan(app):
     Base.metadata.create_all(engine)
+    ensure_new_columns()
     with DB() as db:
-        if not db.scalar(select(Subject.id).limit(1)):
-            for kk,ru,en in [('Информатика','Информатика','Computer Science'),('Математика','Математика','Mathematics'),('Физика','Физика','Physics'),('Қазақ тілі','Казахский язык','Kazakh'),('Орыс тілі','Русский язык','Russian'),('Ағылшын тілі','Английский язык','English'),('Биология','Биология','Biology'),('Химия','Химия','Chemistry'),('География','География','Geography')]:db.add(Subject(name_kk=kk,name_ru=ru,name_en=en))
-        if not db.scalar(select(School.id).limit(1)):
-            for n,c in [('Демо мектеп №1','Астана'),('Демо мектеп №2','Алматы'),('Демо мектеп №3','Шымкент')]:db.add(School(name=n,city=c))
+        # Update existing default subject titles rather than duplicate their IDs.
+        for kk,ru,en,former in SUBJECT_CATALOGUE:
+            existing=db.scalar(select(Subject).where(Subject.name_kk==kk))
+            if existing is None and former:
+                existing=db.scalar(select(Subject).where(Subject.name_kk==former))
+            if existing:
+                existing.name_kk,existing.name_ru,existing.name_en=kk,ru,en
+            else:
+                db.add(Subject(name_kk=kk,name_ru=ru,name_en=en))
+        db.flush()
+        for number,kk,ru,en,a_kk,a_ru,a_en,d_kk,d_ru,d_en in SCHOOL_CATALOGUE:
+            # 'name' is unique and kept stable for already-linked records.
+            stable_name=f'Астана №{number} | {kk}'
+            school=db.scalar(select(School).where(School.name==stable_name))
+            if school is None:
+                school=School(name=stable_name,city='Астана',active=True)
+                db.add(school)
+            school.name_kk,school.name_ru,school.name_en=kk,ru,en
+            school.address_kk,school.address_ru,school.address_en=a_kk,a_ru,a_en
+            school.district_kk,school.district_ru,school.district_en=d_kk,d_ru,d_en
         db.commit()
     UPLOAD_DIR.mkdir(parents=True,exist_ok=True)
     yield
+
 app=FastAPI(title='CodeQuest AI API',version='0.2',lifespan=lifespan)
 app.add_middleware(CORSMiddleware,allow_origins=ORIGINS,allow_credentials=True,allow_methods=['GET','POST','PATCH','DELETE'],allow_headers=['Content-Type'])
 failures=defaultdict(deque)
@@ -246,13 +313,15 @@ async def check_origin(request,call_next):
 def health():return {'status':'ok'}
 @app.get('/api/schools')
 def schools(db:Session=Depends(db_session)):
-    return [dict(id=x.id,name=x.name,city=x.city) for x in db.scalars(select(School).where(School.active.is_(True)).order_by(School.name))]
+    return [school_out(x) for x in db.scalars(select(School).where(School.active.is_(True)).order_by(School.name))]
 @app.get('/api/subjects')
 def subjects(db:Session=Depends(db_session)):
     return [dict(id=x.id,kk=x.name_kk,ru=x.name_ru,en=x.name_en) for x in db.scalars(select(Subject).order_by(Subject.id))]
 @app.post('/api/auth/register',status_code=201)
 def register(p:Register,response:Response,db:Session=Depends(db_session)):
     if not p.consent:raise HTTPException(422,'consent_required')
+    if p.password != p.password_confirm:raise HTTPException(422,'password_mismatch')
+    full_name=compose_name(p.last_name,p.first_name,p.middle_name)
     if db.scalar(select(User.id).where(User.email==p.email)):raise HTTPException(409,'email_taken')
     if p.role=='teacher':
         if p.school_id is None:raise HTTPException(422,'select_school')
@@ -260,7 +329,7 @@ def register(p:Register,response:Response,db:Session=Depends(db_session)):
     elif p.school_id is not None:school_required(db,p.school_id)
     enc,digest=crypto(p.iin)
     if db.scalar(select(User.id).where(User.iin_hash==digest)):raise HTTPException(409,'iin_taken')
-    u=User(full_name=p.full_name,email=p.email,phone=p.phone,password_hash=password_hash(p.password),iin_encrypted=enc,iin_hash=digest,role=p.role,status='pending' if p.role=='teacher' else 'approved',school_id=p.school_id,consented_at=utc())
+    u=User(full_name=full_name,last_name=p.last_name,first_name=p.first_name,middle_name=p.middle_name,email=p.email,phone=p.phone,password_hash=password_hash(p.password),iin_encrypted=enc,iin_hash=digest,role=p.role,status='pending' if p.role=='teacher' else 'approved',school_id=p.school_id,consented_at=utc())
     db.add(u);db.flush()
     if p.role=='teacher':
         for sid in p.subject_ids:db.add(TeacherSubject(teacher_id=u.id,subject_id=sid))
@@ -385,7 +454,9 @@ def admin_edit_user(id:int,p:UserPatch,u:User=Depends(current_user),db:Session=D
         for sid in updates['subject_ids']:target.teacher_subjects.append(TeacherSubject(subject_id=sid))
     for k,v in updates.items():
         if k=='iin' and v is not None:target.iin_encrypted,target.iin_hash=crypto(v)
-        elif k in ('full_name','email','phone','role','status','school_id'):setattr(target,k,v)
+        elif k in ('full_name','first_name','last_name','middle_name','email','phone','role','status','school_id'):setattr(target,k,v)
+    if any(k in updates for k in ('first_name','last_name','middle_name')) and target.first_name and target.last_name:
+        target.full_name=compose_name(target.last_name,target.first_name,target.middle_name)
     audit(db,u,'update','user',id);commit(db);return user_out(target)
 @app.delete('/api/admin/users/{id}')
 def admin_delete_user(id:int,u:User=Depends(current_user),db:Session=Depends(db_session)):
