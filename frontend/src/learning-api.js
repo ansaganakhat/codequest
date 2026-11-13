@@ -33,6 +33,13 @@ async function profile(){
   return {id:u.uid,...snap.data(),verified:u.emailVerified};
 }
 async function teacher(){
+  // Keep Firebase Auth email_verified claim in sync with the user's verified
+  // address before Firestore Rules evaluate teacher-owned writes or queries.
+  await auth.authStateReady();
+  const current=auth.currentUser;
+  if(!current || current.isAnonymous)throw new Error('teacher_login_required');
+  await current.reload();
+  await current.getIdToken(true);
   const p=await profile();
   if((p.role!=='teacher'&&p.role!=='admin')||p.status!=='approved'||!p.verified)throw new Error('teacher_awaits_approval');
   if(!p.school_id && p.role!=='admin')throw new Error('teacher_school_missing');
