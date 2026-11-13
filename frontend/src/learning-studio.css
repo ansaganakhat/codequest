@@ -95,3 +95,15 @@
 .side nav button{flex-shrink:0}
 @media(max-width:920px){.camera-layout,.gesture-layout{grid-template-columns:1fr}.camera-view{min-height:250px}.guest-card{margin:0 auto}}
 @media(max-width:620px){.learning-panel{padding:18px}.learning-form{display:grid}.option-grid{grid-template-columns:1fr}.room-header{flex-direction:column;align-items:flex-start}.analytics-row{grid-template-columns:1fr 55px}.analytics-bar{grid-column:1;grid-row:2}.analytics-row strong{grid-column:2;grid-row:1}.leader-row{grid-template-columns:30px 1fr 55px 55px;padding:9px;font-size:11px}.guest-card{padding:20px}.guest-question{padding:15px}}
+
+/* Permission-first camera flow: explicit consent before accessing webcam. */
+.camera-permission-box{display:grid;gap:14px;padding:20px 22px;margin:16px 0 20px;border:1px solid #d8d2fb;border-radius:17px;background:linear-gradient(130deg,#f7f4ff,#f2f6ff)}
+.camera-permission-copy{display:flex;align-items:flex-start;gap:13px}
+.camera-permission-symbol{background:#e8e1ff;border-radius:12px;padding:13px;flex:none;color:#7351d9}
+.camera-permission-copy h3{font-size:17px;font-weight:800;color:#393051;margin:2px 0 7px}
+.camera-permission-copy p{font-size:13px;color:#65708a;line-height:1.65;max-width:720px}
+.camera-permission-box .camera-request-button{justify-self:start;min-height:44px;padding:12px 19px}
+.camera-permission-alert{border:1px solid #f1d1bc;border-radius:12px;background:#fff6ef;padding:14px 16px;color:#8e4f28;font-size:13px;line-height:1.7}
+.camera-permission-alert p{font-weight:700}
+.camera-permission-alert small{display:block;margin-top:6px;opacity:.88;font-size:12px}
+@media(max-width:620px){.camera-permission-box{padding:16px}.camera-permission-box .camera-request-button{width:100%}}
