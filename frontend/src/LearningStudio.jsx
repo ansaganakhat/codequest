@@ -184,16 +184,25 @@ function FaceWheel({lang}){
 }
 
 function QuizHost({lang}){
- const [title,setTitle]=useState('Информатика блиц'),[items,setItems]=useState(starters),[rows,setRows]=useState([]),[classes,setClasses]=useState([]),[classId,setClassId]=useState(''),[active,setActive]=useState(null),[answers,setAnswers]=useState([]),[keys,setKeys]=useState([]),[qr,setQr]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const [title,setTitle]=useState('Информатика блиц'),[items,setItems]=useState(starters),[rows,setRows]=useState([]),[classes,setClasses]=useState([]),[classNames,setClassNames]=useState({}),[classId,setClassId]=useState(''),[active,setActive]=useState(null),[answers,setAnswers]=useState([]),[keys,setKeys]=useState([]),[qr,setQr]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const quizError=e=>e?.code==='permission-denied'?T(lang,'quizPermissionDenied'):report(e);
  const load=async()=>{try{setRows(await learningApi.quizzes());}catch(e){setError(quizError(e))}};
  useEffect(()=>{load();learningApi.classrooms().then(setClasses).catch(e=>setError(quizError(e)))},[]);
  useEffect(()=>{if(!active)return;const url=window.location.origin+'/?join='+encodeURIComponent(active.id);QRCode.toDataURL(url,{margin:2,width:170,errorCorrectionLevel:'M'}).then(setQr).catch(()=>setQr(''));},[active?.id]);
  useEffect(()=>{if(!active)return;const unsub=learningApi.listenResponses(active.id,setAnswers,e=>setError(report(e)));return()=>unsub()},[active?.id]);
  useEffect(()=>{if(!active)return;learningApi.quizKey(active.id).then(setKeys).catch(e=>setError(report(e)));},[active?.id]);
+ useEffect(()=>{
+  setClassNames({});
+  if(!active?.class_id)return;
+  let cancelled=false;
+  learningApi.classMembers(active.class_id).then(rows=>{
+   if(!cancelled)setClassNames(Object.fromEntries(rows.filter(m=>m.status==='approved').map(m=>[m.student_uid,m.student_name])));
+  }).catch(e=>{if(!cancelled)setError(quizError(e))});
+  return()=>{cancelled=true};
+ },[active?.class_id]);
  const edit=(i,k,value)=>setItems(v=>v.map((q,j)=>i===j?{...q,[k]:value}:q));
  const create=async()=>{setBusy(true);setError('');try{const q=await learningApi.createQuiz({title,items,class_id:classId||undefined});setActive(q);setAnswers([]);setKeys(items.map(x=>x.correct));await load()}catch(e){setError(quizError(e))}finally{setBusy(false)}};
- const counts=useMemo(()=>{const map=new Map();answers.forEach(a=>{const uid=a.participant_uid;const prev=map.get(uid)||{uid,alias:a.alias,correct:0,answers:0};prev.answers++;if(keys[a.question_index]===a.option_index)prev.correct++;map.set(uid,prev)});return Array.from(map.values()).sort((a,b)=>b.correct-a.correct)},[answers,keys]);
+ const counts=useMemo(()=>{const map=new Map();answers.forEach(a=>{const uid=a.participant_uid;const prev=map.get(uid)||{uid,alias:active?.class_id?(classNames[uid]||'Сынып оқушысы'):a.alias,correct:0,answers:0};prev.answers++;if(keys[a.question_index]===a.option_index)prev.correct++;map.set(uid,prev)});return Array.from(map.values()).sort((a,b)=>b.correct-a.correct)},[answers,keys,classNames,active?.class_id]);
  const link=active?window.location.origin+'/?join='+active.id:'';
  const startQuiz=async()=>{if(!active)return;setBusy(true);setError('');try{const started=await learningApi.startQuiz(active.id);setActive(started);await load()}catch(e){setError(quizError(e))}finally{setBusy(false)}};
  const locale={

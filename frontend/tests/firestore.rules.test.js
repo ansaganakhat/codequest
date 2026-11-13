@@ -31,6 +31,27 @@ test('Firestore rules: students join only after a teacher approves, class quizze
   const student2=env.authenticatedContext('student2',{email:'student2@example.com',email_verified:true}).firestore();
   const parent=env.authenticatedContext('parent1',{email:'parent1@example.com',email_verified:true}).firestore();
   const guest=env.unauthenticatedContext().firestore();
+  await t.test('Existing parent/teacher signup remains valid; student signup needs guardian acknowledgement',async()=>{
+   const parentSignup=env.authenticatedContext('newparent',{email:'newparent@example.com',email_verified:true}).firestore();
+   const teacherSignup=env.authenticatedContext('newteacher',{email:'newteacher@example.com',email_verified:true}).firestore();
+   const learnerSignup=env.authenticatedContext('newlearner',{email:'newlearner@example.com',email_verified:true}).firestore();
+   const base={
+     last_name:'Sample',first_name:'Test',middle_name:'',full_name:'Sample Test',
+     phone:'',status:'pending',school_id:null,subject_ids:[],
+     consented_at:new Date().toISOString(),created_at:new Date().toISOString()
+   };
+   const parentProfile={...base,id:'newparent',email:'newparent@example.com',role:'parent'};
+   const teacherProfile={...base,id:'newteacher',email:'newteacher@example.com',role:'teacher',school_id:2,subject_ids:[1]};
+   const learnerProfile={...base,id:'newlearner',email:'newlearner@example.com',role:'student'};
+   await assertSucceeds(setDoc(doc(parentSignup,'users','newparent'),parentProfile));
+   await assertSucceeds(setDoc(doc(teacherSignup,'users','newteacher'),teacherProfile));
+   await assertFails(setDoc(doc(learnerSignup,'users','newlearner'),learnerProfile));
+   await assertFails(setDoc(doc(learnerSignup,'users','newlearner'),{...learnerProfile,guardian_permission_acknowledged:false}));
+   await assertSucceeds(setDoc(doc(learnerSignup,'users','newlearner'),{...learnerProfile,guardian_permission_acknowledged:true}));
+   const child={full_name:'Sample Child',grade:5,class_letter:'А',school_id:2,parent_id:'newparent',status:'pending',created_at:new Date().toISOString()};
+   await assertSucceeds(setDoc(doc(parentSignup,'students','child-for-parent'),child));
+   await assertFails(setDoc(doc(learnerSignup,'students','child-for-learner'),{...child,parent_id:'newlearner'}));
+  });
   const classroom={owner_uid:'teacher1',school_id:2,name:'6-А',grade:6,letter:'А',created_at:ts};
   await t.test('Only the approved teacher can create their own class',async()=>{
    await assertSucceeds(setDoc(doc(teacher,'classrooms',classId),classroom));
