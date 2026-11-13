@@ -10,7 +10,7 @@ import {
 } from 'firebase/auth';
 import {
   getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc,
-  updateDoc, deleteDoc, query, where
+  updateDoc, deleteDoc, query, where, runTransaction
 } from 'firebase/firestore';
 import { previewSchools, previewSubjects } from './catalog.js';
 
@@ -30,6 +30,24 @@ const schoolRef = id => doc(store,'schools',String(id));
 const studentCol = () => collection(store, 'students');
 const normalizeStudent = snap => ({...snap.data(),id:snap.id,photo_url:null});
 const schoolById = id => previewSchools.find(s=>String(s.id)===String(id));
+// Catalogue entities are referenced by numeric IDs throughout registration and
+// security rules. Allocate a numeric document ID instead of Firestore's random IDs.
+// The transaction prevents overwrites when two admins create an entry concurrently.
+async function createNumericCatalogueEntry(collectionName,previewRows,record){
+  const all=await getDocs(collection(store,collectionName));
+  const numericIds=[
+    ...previewRows.map(x=>Number(x.id)||0),
+    ...all.docs.map(x=>/^\d+$/.test(x.id)?Number(x.id):0)
+  ];
+  const nextId=Math.max(0,...numericIds)+1;
+  const ref=doc(store,collectionName,String(nextId));
+  await runTransaction(store,async tx=>{
+    const existing=await tx.get(ref);
+    if(existing.exists())throw new Error('catalogue_id_conflict_retry');
+    tx.set(ref,record);
+  });
+  return {id:nextId,...record};
+}
 function publicUser(profile) {
   if(!profile)throw new Error('profile_missing');
   return {...profile, school_name:schoolById(profile.school_id)?.name_kk || null,
@@ -227,8 +245,7 @@ export const firebaseApi={
   async addSchool(payload){
     await mustAdmin();
     const record={name:String(payload.name),name_kk:String(payload.name),city:String(payload.city||''),active:true};
-    const result=await addDoc(collection(store,'schools'),record);
-    return {id:result.id,...record};
+    return await createNumericCatalogueEntry('schools',previewSchools,record);
   },
   async editSchool(id,payload){
     await mustAdmin();
@@ -243,8 +260,7 @@ export const firebaseApi={
   async addSubject(payload){
     await mustAdmin();
     const row={kk:payload.name_kk,ru:payload.name_ru,en:payload.name_en};
-    const d=await addDoc(collection(store,'subjects'),row);
-    return {id:d.id,...row};
+    return await createNumericCatalogueEntry('subjects',previewSubjects,row);
   },
   async editSubject(id,payload){
     await mustAdmin();
