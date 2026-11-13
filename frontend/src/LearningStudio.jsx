@@ -99,7 +99,7 @@ function Classrooms({lang,students=[]}){
  const t=k=>lk[lang]?.[k]||lk.kk[k]||k;
  return <Panel title={T(lang,'classroom')} desc={t('intro')}>
   <form className="learning-form" onSubmit={create}><label>{T(lang,'className')}<input required minLength={3} maxLength={80} value={name} onChange={e=>setName(e.target.value)}/></label><label>{T(lang,'grade')}<select value={grade} onChange={e=>setGrade(Number(e.target.value))}>{Array.from({length:11},(_,i)=><option key={i+1} value={i+1}>{i+1}</option>)}</select></label><label>{T(lang,'letter')}<input maxLength={4} value={letter} onChange={e=>setLetter(e.target.value)}/></label><Button disabled={busy}><Plus size={16}/>{T(lang,'create')}</Button></form>
-  <Msg error={error}/><p className="learning-notice"><ShieldCheck size={17}/>{t('consent')}</p>
+  <Msg error={error}/><div className="learning-actions"><button type="button" className="learning-secondary" disabled={busy} onClick={load}><RefreshCcw size={16}/>{lang==='ru'?'Обновить заявки':lang==='en'?'Refresh requests':'Өтініштерді жаңарту'}</button></div><p className="learning-notice"><ShieldCheck size={17}/>{t('consent')}</p>
   <div className="teacher-class-grid">{rows.map(c=>{
     const roster=members[c.id]||[],confirmed=roster.filter(m=>m.status==='approved').length;
     const existing=students.filter(st=>st.status==='approved'&&Number(st.school_id)===Number(c.school_id)&&st.grade===c.grade&&(!c.letter||st.class_letter===c.letter));
