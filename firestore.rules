@@ -96,6 +96,116 @@ service cloud.firestore {
       );
       allow delete: if admin();
     }
+
+    // Stage 1: approved teacher's own classrooms. Student membership is NEVER
+    // derived from freely chosen school IDs; only verified teacher profiles pass.
+    function activeTeacher() {
+      return myProfileExists() &&
+        (myProfile().role == 'teacher' || admin()) &&
+        myProfile().status == 'approved' &&
+        request.auth.token.email_verified == true;
+    }
+    function ownsClassroom(data) {
+      return activeTeacher() && data.owner_uid == request.auth.uid;
+    }
+    match /classrooms/{classId} {
+      allow get, list: if admin() || ownsClassroom(resource.data);
+      allow create: if activeTeacher()
+        && request.resource.data.keys().hasOnly(['owner_uid','school_id','name','grade','letter','created_at'])
+        && request.resource.data.keys().hasAll(['owner_uid','school_id','name','grade','letter','created_at'])
+        && request.resource.data.owner_uid == request.auth.uid
+        && request.resource.data.school_id == myProfile().school_id
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 3 && request.resource.data.name.size() <= 80
+        && request.resource.data.grade is int
+        && request.resource.data.grade >= 1 && request.resource.data.grade <= 11
+        && request.resource.data.letter is string
+        && request.resource.data.letter.size() <= 4
+        && request.resource.data.created_at is int;
+      allow update, delete: if admin() || (
+        ownsClassroom(resource.data) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','grade','letter'])
+      );
+    }
+
+    // Stage 2: quiz is not a formal grade or identity verification service.
+    // The random document ID is the join code. No public collection listing.
+    function quizPath(id) { return /databases/$(database)/documents/quizzes/$(id); }
+    function isQuizOwner(id) {
+      return activeTeacher() &&
+        get(quizPath(id)).data.owner_uid == request.auth.uid;
+    }
+    function quizOpen(id) {
+      return exists(quizPath(id)) && get(quizPath(id)).data.status == 'open';
+    }
+    match /quizzes/{quizId} {
+      // Authenticated/anonymous guests need the exact unguessable ID to view.
+      allow get: if signedIn();
+      allow list: if admin() ||
+        (activeTeacher() && resource.data.owner_uid == request.auth.uid);
+      allow create: if activeTeacher()
+        && request.resource.data.keys().hasOnly(['owner_uid','school_id','title','questions','status','created_at'])
+        && request.resource.data.keys().hasAll(['owner_uid','school_id','title','questions','status','created_at'])
+        && request.resource.data.owner_uid == request.auth.uid
+        && request.resource.data.school_id == myProfile().school_id
+        && request.resource.data.status == 'open'
+        && request.resource.data.title is string
+        && request.resource.data.title.size() >= 3
+        && request.resource.data.title.size() <= 100
+        && request.resource.data.questions is list
+        && request.resource.data.questions.size() >= 1
+        && request.resource.data.questions.size() <= 10
+        && request.resource.data.created_at is int;
+      allow update: if admin() || (
+        ownsClassroom(resource.data) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','closed_at'])
+        && request.resource.data.status == 'closed'
+        && request.resource.data.closed_at is int
+      );
+      allow delete: if admin();
+
+      match /responses/{answerId} {
+        allow get: if admin() ||
+          isQuizOwner(quizId) ||
+          (signedIn() && resource.data.participant_uid == request.auth.uid);
+        allow list: if admin() || isQuizOwner(quizId);
+        allow create: if signedIn() && quizOpen(quizId)
+          && request.resource.data.keys().hasOnly([
+            'participant_uid','question_index','option_index','alias','created_at'
+          ])
+          && request.resource.data.keys().hasAll([
+            'participant_uid','question_index','option_index','alias','created_at'
+          ])
+          && request.resource.data.participant_uid == request.auth.uid
+          && request.resource.data.question_index is int
+          && request.resource.data.question_index >= 0
+          && request.resource.data.question_index <
+            get(quizPath(quizId)).data.questions.size()
+          && request.resource.data.option_index is int
+          && request.resource.data.option_index >= 0
+          && request.resource.data.option_index <= 3
+          && request.resource.data.alias is string
+          && request.resource.data.alias.size() >= 1
+          && request.resource.data.alias.size() <= 24
+          && request.resource.data.created_at is int
+          && answerId == request.auth.uid + '_' + string(request.resource.data.question_index);
+        // A participant cannot change a response once submitted.
+        allow update, delete: if false;
+      }
+    }
+    match /quiz_answer_keys/{quizId} {
+      allow get, list: if admin() || isQuizOwner(quizId);
+      // A single atomic batch creates the public quiz and private answer keys.
+      allow create: if activeTeacher()
+        && request.resource.data.keys().hasOnly(['owner_uid','answers','created_at'])
+        && request.resource.data.owner_uid == request.auth.uid
+        && request.resource.data.answers is list
+        && request.resource.data.answers.size() >= 1
+        && request.resource.data.answers.size() <= 10
+        && getAfter(quizPath(quizId)).data.owner_uid == request.auth.uid;
+      allow update, delete: if admin();
+    }
+
     match /{path=**} { allow read, write: if false; }
   }
 }

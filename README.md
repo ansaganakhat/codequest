@@ -1,4 +1,8 @@
-# CodeQuest AI — мектептік платформа (MVP v0.3)
+# CodeQuest AI — мектептік платформа (MVP v0.4)
+
+**Жаңа функциялар (1–3 кезең):** Менің сыныптарым, Live Quiz + QR, Face Wheel (жергілікті камера), Gesture Game, ережеге негізделген оқу көмекшісі, викторина аналитикасы. **Іске қосу және жаңа Firestore Rules:** [LEARNING_STUDIO_SETUP_KK.md](LEARNING_STUDIO_SETUP_KK.md).
+
+**Ескерту:** GitHub жаңартуы Firestore Rules-ті автоматты жарияламайды; жаңа cloud-функцияларды қолдану үшін құжаттағы ережелер мен Anonymous Firebase Auth-ты қосу керек. ЖСН мен бала фотосы Firebase сынақ нұсқасында қабылданбайды.
 
 **Firebase сынақ интеграциясы дайын:** [FIREBASE_SETUP.md](FIREBASE_SETUP.md). Firebase веб-конфигурациясы қосылмайынша онлайн сайт қауіпсіз preview режимінде қалады. Firebase сынағы ЖСН және балалардың фотоларын қабылдамайды. Бұрынғы FastAPI/Supabase коды жойылған жоқ.
 

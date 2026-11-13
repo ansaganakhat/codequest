@@ -1,0 +1,97 @@
+/* CodeQuest AI Learning Studio — stages 1–3 */
+.learning-panel{background:#fff;border:1px solid #e8ebf5;border-radius:22px;padding:27px;min-height:260px;box-shadow:0 3px 14px #16204005}
+.learning-panel>header{display:grid;gap:8px;margin-bottom:22px}
+.learning-panel>header h2{font-size:23px;font-weight:800;letter-spacing:-.5px;color:#222844}
+.learning-panel>header p{font-size:13px;line-height:1.6;color:#8892aa}
+.learning-notice{display:flex;align-items:center;gap:10px;padding:13px 15px;background:#eeebfd;color:#5541a7;font-size:12px;border-radius:12px;line-height:1.6;margin:13px 0}
+.learning-notice svg{flex:none}
+.learning-error{background:#ffeeee;color:#a83950;padding:13px 15px;border-radius:12px;margin-top:15px;white-space:pre-wrap;font-size:13px;word-break:break-word}
+.learning-success{display:flex;gap:8px;align-items:center;background:#e8f8ed;color:#19846a;padding:12px;border-radius:12px;margin-top:13px}
+.learning-form{display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin:18px 0}
+.learning-form>label,.learning-topic,.guest-card>label{display:grid;gap:8px;flex:1;min-width:150px;font-size:12px;color:#62708e;font-weight:700}
+.learning-form input,.learning-form select,.learning-topic select,.guest-card input,.learning-question input{background:#fff;border:1px solid #dce1ee;border-radius:10px;padding:11px 12px;color:#242b49;min-height:41px;width:100%}
+.learning-button,.learning-secondary{padding:12px 17px;min-height:42px;border-radius:11px;display:inline-flex;align-items:center;justify-content:center;gap:10px;font-weight:750;font-size:13px}
+.learning-button{border:none;color:white;background:#7058e8;box-shadow:0 5px 15px #7058e826}
+.learning-button:hover{background:#6047d4}
+.learning-button:disabled,.learning-secondary:disabled{opacity:.5;cursor:default}
+.learning-secondary{border:1px solid #d8ddee;background:white;color:#6253af}
+.learning-secondary:hover{background:#f1eefe}
+.learning-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:18px}
+.learning-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px;margin-top:24px}
+.learning-tile{border:1px solid #e7e8f2;border-radius:16px;background:#fbfbff;padding:20px;display:flex;flex-direction:column;gap:10px;min-height:148px}
+.learning-tile svg{color:#7656e8}
+.learning-tile strong{font-size:18px}
+.learning-tile small{font-size:12px;color:#7a859e}
+.learning-tile p{font-size:12px;color:#8f9ab0;line-height:1.5}
+.camera-layout{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(210px,1fr);gap:20px}
+.camera-view,.gesture-camera{background:#1f2040;border-radius:19px;min-height:270px;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;color:#8e83b6}
+.camera-view video{width:100%;height:auto;max-height:440px;object-fit:cover}
+.camera-empty{display:grid;gap:18px;justify-items:center;text-align:center;font-size:13px}
+.faces-view{border:1px dashed #d8d4ef;border-radius:19px;padding:18px;min-width:0}
+.faces-view>strong{display:block;margin-bottom:17px}
+.faces-view>small{font-size:12px;color:#959eb2}
+.face-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(58px,1fr));gap:8px}
+.face-thumb{width:100%;aspect-ratio:1;object-fit:cover;border-radius:12px;border:3px solid transparent;transition:transform .1s,border-color .1s}
+.face-thumb.selected{border-color:#ffb236;transform:scale(1.13);box-shadow:0 4px 20px #d49b354d;z-index:2}
+.winner{display:flex;align-items:center;gap:10px;background:#fff1cb;color:#865d18;padding:12px;margin-top:16px;border-radius:12px;font-weight:800}
+.question-list{display:grid;gap:18px}
+.learning-question{border:1px solid #e7e8f2;border-radius:17px;padding:18px;display:grid;gap:14px}
+.learning-question header{display:flex;align-items:center;justify-content:space-between}
+.learning-question header button{background:none;border:0;color:#b95a6b}
+.option-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.option-grid>label{display:flex;align-items:center;gap:9px;border:1px solid #ebeef5;border-radius:10px;padding:8px}
+.option-grid>label span{font-weight:800;color:#6551cc;font-size:12px}
+.option-grid input[type=text],.option-grid input:not([type]){flex:1;min-width:0;border:0;box-shadow:none;padding:6px}
+.option-grid input[type=radio]{width:17px;height:17px;accent-color:#7156e9;flex:none}
+.room-header{display:flex;align-items:center;justify-content:space-between;gap:22px;padding:20px;border-radius:17px;border:1px solid #ddd8f3;background:#f9f7ff}
+.room-header small{font-size:12px;color:#8a80b0}
+.room-header h3{margin:8px 0;font-size:23px}
+.room-header code{display:inline-block;background:#e4ddff;padding:7px 10px;border-radius:8px;word-break:break-word;max-width:100%}
+.room-header p{margin-top:12px;font-size:12px;word-break:break-all;color:#7260bb}
+.room-header img{border-radius:13px;background:white;flex:none}
+.section-title{font-size:17px;margin:23px 0 11px}
+.leaderboard{display:grid;gap:8px}
+.leader-row{display:grid;grid-template-columns:40px 1fr 85px 85px;align-items:center;gap:8px;padding:13px 15px;background:#fafaff;border:1px solid #eaebf5;border-radius:12px;font-size:12px}
+.leader-row>span:first-child{font-weight:800;color:#6d50c9}
+.leader-row strong{color:#d69b34}
+.previous-quizzes{margin-top:25px}
+.previous-quizzes h3{margin-bottom:12px}
+.previous-quizzes>button{border:1px solid #e8e9f2;background:white;border-radius:11px;padding:13px;margin-bottom:8px;width:100%;display:flex;justify-content:space-between;align-items:center;text-align:left;color:#54607d}
+.guest-page{min-height:100vh;background:radial-gradient(ellipse at 10% 5%,#e6ddff,#f7f9ff 45%,#f2f5fc);padding:35px 18px;display:flex;justify-content:center;align-items:flex-start}
+.guest-card{background:white;border-radius:24px;box-shadow:0 15px 70px #1c235018;width:min(610px,100%);padding:30px;display:grid;gap:17px}
+.guest-brand{color:#7655df;letter-spacing:.7px;font-size:12px;font-weight:800}
+.guest-card h1{font-size:27px;color:#25264a}
+.guest-card h2{font-size:21px}
+.guest-card>p{font-size:13px;color:#8893ac}
+.guest-question{border-radius:16px;padding:22px;background:#f7f5ff;display:grid;gap:17px}
+.guest-question h3{font-size:18px;line-height:1.45}
+.guest-question>div{display:grid;gap:9px}
+.guest-question button{background:white;border:1px solid #e5e1f4;border-radius:12px;display:flex;align-items:center;gap:13px;text-align:left;padding:15px;color:#2c3451}
+.guest-question button:not(:disabled):hover{border-color:#8268ef;background:#ece7ff}
+.guest-question button b{width:28px;height:28px;display:grid;place-items:center;background:#e6dfff;color:#7054e5;border-radius:7px}
+.gesture-layout{display:grid;grid-template-columns:1fr 1.1fr;gap:20px}
+.gesture-camera video{object-fit:cover;width:100%;height:auto}
+.gesture-task{border-radius:17px;background:#f8f7ff;padding:22px}
+.gesture-task>b{display:inline-block;color:#c38e29;background:#fff0c8;padding:8px 12px;border-radius:9px;font-size:12px}
+.gesture-task h3{font-size:18px;line-height:1.4;margin:17px 0}
+.gesture-options{display:grid;gap:9px}
+.gesture-options button{padding:12px 14px;border:1px solid #e0dceb;border-radius:12px;background:white;color:#363355;text-align:left;font-size:13px}
+.gesture-options button.hovered{border-color:#e49e29;background:#fff3d6;box-shadow:0 0 0 2px #e49e2922}
+.gesture-options button.chosen{background:#dcd3ff;border-color:#7855ed}
+.gesture-task>p{margin:15px 0;line-height:1.6;font-size:12px;color:#64718a}
+.learning-topic{max-width:350px;margin:16px 0}
+.tutor-box{display:flex;gap:18px;align-items:flex-start;margin-top:24px;background:#f8f7ff;padding:20px;border-radius:17px}
+.tutor-avatar{display:grid;place-items:center;background:#7654e8;color:white;border-radius:16px;padding:15px}
+.tutor-box>p{font-size:16px;line-height:1.8;padding-top:8px}
+.tutor-answer{background:#e7f9f1;color:#297963;padding:20px;border-radius:15px;line-height:1.7;margin:18px 0}
+.analytics-row{display:grid;grid-template-columns:minmax(180px,1fr) minmax(100px,1fr) 65px;align-items:center;gap:18px;padding:17px;border-bottom:1px solid #edf0f7}
+.analytics-row>div:first-child{display:grid;gap:8px}
+.analytics-row b{font-size:13px}
+.analytics-row small{color:#8994aa;font-size:11px}
+.analytics-bar{height:12px;background:#ece8ff;border-radius:100px;overflow:hidden}
+.analytics-bar span{display:block;height:100%;background:#755aeb;border-radius:100px}
+.analytics-row>strong{font-size:16px;color:#6851df}
+.side nav{min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:#5b6291 transparent}
+.side nav button{flex-shrink:0}
+@media(max-width:920px){.camera-layout,.gesture-layout{grid-template-columns:1fr}.camera-view{min-height:250px}.guest-card{margin:0 auto}}
+@media(max-width:620px){.learning-panel{padding:18px}.learning-form{display:grid}.option-grid{grid-template-columns:1fr}.room-header{flex-direction:column;align-items:flex-start}.analytics-row{grid-template-columns:1fr 55px}.analytics-bar{grid-column:1;grid-row:2}.analytics-row strong{grid-column:2;grid-row:1}.leader-row{grid-template-columns:30px 1fr 55px 55px;padding:9px;font-size:11px}.guest-card{padding:20px}.guest-question{padding:15px}}
