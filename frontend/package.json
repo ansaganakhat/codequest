@@ -9,7 +9,8 @@
     "test": "node --test tests/quiz-room.test.js",
     "preview": "vite preview --host 0.0.0.0",
     "firebase:seed": "node scripts/firebase-seed.mjs",
-    "firebase:admin": "node scripts/firebase-set-admin.mjs"
+    "firebase:admin": "node scripts/firebase-set-admin.mjs",
+    "test:rules": "cd .. && ./frontend/node_modules/.bin/firebase emulators:exec --project demo-codequest-tests --only firestore \"cd frontend && node --test tests/firestore.rules.test.js\""
   },
   "dependencies": {
     "@vitejs/plugin-react": "^4.3.4",
@@ -22,6 +23,8 @@
     "qrcode": "^1.5.4"
   },
   "devDependencies": {
-    "firebase-admin": "^13.5.0"
+    "firebase-admin": "^13.5.0",
+    "@firebase/rules-unit-testing": "^6.0.0",
+    "firebase-tools": "^15.36.0"
   }
 }

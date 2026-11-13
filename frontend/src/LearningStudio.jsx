@@ -79,15 +79,42 @@ function Msg({error}){return error?<p className="learning-error" role="alert">{r
 function Button({children,...rest}){return <button className="learning-button" {...rest}>{children}</button>}
 
 function Classrooms({lang,students=[]}){
- const [rows,setRows]=useState([]),[name,setName]=useState('6-А'),[grade,setGrade]=useState(6),[letter,setLetter]=useState('А'),[busy,setBusy]=useState(false),[error,setError]=useState('');
- const load=async()=>{try{setRows(await learningApi.classrooms());setError('')}catch(e){setError(report(e))}};
+ const [rows,setRows]=useState([]),[members,setMembers]=useState({}),[name,setName]=useState('6-А'),[grade,setGrade]=useState(6),[letter,setLetter]=useState('А'),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const load=async()=>{
+  try{
+   const classes=await learningApi.classrooms();
+   const all=await Promise.all(classes.map(c=>learningApi.classMembers(c.id)));
+   setRows(classes);setMembers(Object.fromEntries(classes.map((c,i)=>[c.id,all[i]])));setError('');
+  }catch(e){setError(report(e))}
+ };
  useEffect(()=>{load()},[]);
- const create=async e=>{e.preventDefault();setBusy(true);try{await learningApi.createClassroom({name,grade,letter});await load()}catch(e){setError(report(e))}finally{setBusy(false)}};
- return <Panel title={T(lang,'classroom')} desc={T(lang,'classroomDesc')}>
-  <form className="learning-form" onSubmit={create}><label>{T(lang,'className')}<input required minLength={3} maxLength={80} value={name} onChange={e=>setName(e.target.value)}/></label><label>{T(lang,'grade')}<select value={grade} onChange={e=>setGrade(Number(e.target.value))}>{Array.from({length:11},(_,i)=><option key={i} value={i+1}>{i+1}</option>)}</select></label><label>{T(lang,'letter')}<input maxLength={4} value={letter} onChange={e=>setLetter(e.target.value)}/></label><Button disabled={busy}><Plus size={16}/> {T(lang,'create')}</Button></form>
-  <Msg error={error}/><div className="learning-grid">{rows.map(c=>{const n=students.filter(s=>s.status==='approved'&&Number(s.school_id)===Number(c.school_id)&&s.grade===c.grade&&(!c.letter||s.class_letter===c.letter)).length;return <div key={c.id} className="learning-tile"><School size={25}/><strong>{c.name}</strong><small>{c.grade}{c.letter} · {T(lang,'studentCount')}: {n}</small><p>{students.filter(s=>s.status==='approved'&&s.grade===c.grade&&(!c.letter||s.class_letter===c.letter)&&Number(s.school_id)===Number(c.school_id)).slice(0,12).map(s=>s.full_name).join(', ')||T(lang,'empty')}</p></div>})}</div>
+ const create=async e=>{e.preventDefault();setBusy(true);setError('');try{await learningApi.createClassroom({name,grade,letter});await load()}catch(e){setError(report(e))}finally{setBusy(false)}};
+ const decide=async(classId,uid,status)=>{setBusy(true);setError('');try{await learningApi.decideMembership(classId,uid,status);await load()}catch(e){setError(report(e))}finally{setBusy(false)}};
+ const copyCode=async value=>{try{await navigator.clipboard.writeText(value)}catch(e){setError(report(e))}};
+ const lk={
+  kk:{intro:'Сынып кодын оқушыларға беріңіз. Оқушылар жеке аккаунтпен өтініш жібереді, сіз растағаннан кейін ғана сыныпқа қосылады.',code:'Сынып коды',pending:'Күтуде',approved:'Расталды',rejected:'Қабылданбады',accept:'Растау',reject:'Қабылдамау',members:'Қосылған оқушылар',empty:'Әлі өтініш жоқ',copy:'Көшіру',existing:'Бұрын тіркелген оқушылар',consent:'Оқушыны қабылдамас бұрын ата-анасының/заңды өкілінің келісімін тексеріңіз.'},
+  ru:{intro:'Передайте код ученикам: они подают заявки через личный аккаунт, вы проверяете и подтверждаете.',code:'Код класса',pending:'Ожидает',approved:'Подтвержден',rejected:'Отклонен',accept:'Подтвердить',reject:'Отклонить',members:'Ученики класса',empty:'Заявок пока нет',copy:'Копировать',existing:'Ранее зарегистрированные ученики',consent:'Перед подтверждением проверьте разрешение родителя/законного представителя.'},
+  en:{intro:'Share the class code. Students sign in to request access; approve them before they join.',code:'Class code',pending:'Pending',approved:'Approved',rejected:'Rejected',accept:'Approve',reject:'Reject',members:'Class members',empty:'No join requests yet',copy:'Copy',existing:'Existing student records',consent:'Verify parent/guardian permission before approving a student.'}
+ };
+ const t=k=>lk[lang]?.[k]||lk.kk[k]||k;
+ return <Panel title={T(lang,'classroom')} desc={t('intro')}>
+  <form className="learning-form" onSubmit={create}><label>{T(lang,'className')}<input required minLength={3} maxLength={80} value={name} onChange={e=>setName(e.target.value)}/></label><label>{T(lang,'grade')}<select value={grade} onChange={e=>setGrade(Number(e.target.value))}>{Array.from({length:11},(_,i)=><option key={i+1} value={i+1}>{i+1}</option>)}</select></label><label>{T(lang,'letter')}<input maxLength={4} value={letter} onChange={e=>setLetter(e.target.value)}/></label><Button disabled={busy}><Plus size={16}/>{T(lang,'create')}</Button></form>
+  <Msg error={error}/><p className="learning-notice"><ShieldCheck size={17}/>{t('consent')}</p>
+  <div className="teacher-class-grid">{rows.map(c=>{
+    const roster=members[c.id]||[],confirmed=roster.filter(m=>m.status==='approved').length;
+    const existing=students.filter(st=>st.status==='approved'&&Number(st.school_id)===Number(c.school_id)&&st.grade===c.grade&&(!c.letter||st.class_letter===c.letter));
+    return <section className="teacher-class-card" key={c.id}>
+      <div className="teacher-class-heading"><School size={25}/><div><h3>{c.name}</h3><small>{c.grade}{c.letter} · {t('members')}: {confirmed}</small></div></div>
+      <div className="class-code-line"><span><small>{t('code')}</small><code>{c.id}</code></span><button type="button" className="learning-secondary" onClick={()=>copyCode(c.id)}><Copy size={16}/>{t('copy')}</button></div>
+      <h4>{t('members')}</h4>
+      {roster.length?<div className="class-members-list">{roster.map(m=><div key={m.id} className="class-member-row"><span><strong>{m.student_name}</strong><small>{t(m.status)}</small></span><div className="class-member-actions">{m.status!=='approved'&&<button type="button" disabled={busy} className="learning-button" onClick={()=>decide(c.id,m.student_uid,'approved')}><Check size={15}/>{t('accept')}</button>}{m.status!=='rejected'&&<button type="button" disabled={busy} className="learning-secondary" onClick={()=>decide(c.id,m.student_uid,'rejected')}><X size={15}/>{t('reject')}</button>}</div></div>)}</div>:<p className="learning-hint">{t('empty')}</p>}
+      {existing.length>0&&<p className="learning-hint">{t('existing')}: {existing.length}</p>}
+    </section>
+  })}</div>
+  {!rows.length&&<p className="learning-notice">{T(lang,'empty')}</p>}
  </Panel>;
 }
+
 function FaceWheel({lang}){
  const video=useRef(null),stream=useRef(null),detector=useRef(null),timer=useRef(null);
  const [running,setRunning]=useState(false),[busy,setBusy]=useState(false),[faces,setFaces]=useState([]),[index,setIndex]=useState(-1),[winner,setWinner]=useState(-1),[error,setError]=useState('');
@@ -157,27 +184,34 @@ function FaceWheel({lang}){
 }
 
 function QuizHost({lang}){
- const [title,setTitle]=useState('Информатика блиц'),[items,setItems]=useState(starters),[rows,setRows]=useState([]),[active,setActive]=useState(null),[answers,setAnswers]=useState([]),[keys,setKeys]=useState([]),[qr,setQr]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const [title,setTitle]=useState('Информатика блиц'),[items,setItems]=useState(starters),[rows,setRows]=useState([]),[classes,setClasses]=useState([]),[classId,setClassId]=useState(''),[active,setActive]=useState(null),[answers,setAnswers]=useState([]),[keys,setKeys]=useState([]),[qr,setQr]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const quizError=e=>e?.code==='permission-denied'?T(lang,'quizPermissionDenied'):report(e);
  const load=async()=>{try{setRows(await learningApi.quizzes());}catch(e){setError(quizError(e))}};
- useEffect(()=>{load()},[]);
+ useEffect(()=>{load();learningApi.classrooms().then(setClasses).catch(e=>setError(quizError(e)))},[]);
  useEffect(()=>{if(!active)return;const url=window.location.origin+'/?join='+encodeURIComponent(active.id);QRCode.toDataURL(url,{margin:2,width:170,errorCorrectionLevel:'M'}).then(setQr).catch(()=>setQr(''));},[active?.id]);
  useEffect(()=>{if(!active)return;const unsub=learningApi.listenResponses(active.id,setAnswers,e=>setError(report(e)));return()=>unsub()},[active?.id]);
  useEffect(()=>{if(!active)return;learningApi.quizKey(active.id).then(setKeys).catch(e=>setError(report(e)));},[active?.id]);
  const edit=(i,k,value)=>setItems(v=>v.map((q,j)=>i===j?{...q,[k]:value}:q));
- const create=async()=>{setBusy(true);setError('');try{const q=await learningApi.createQuiz({title,items});setActive(q);setAnswers([]);setKeys(items.map(x=>x.correct));await load()}catch(e){setError(quizError(e))}finally{setBusy(false)}};
+ const create=async()=>{setBusy(true);setError('');try{const q=await learningApi.createQuiz({title,items,class_id:classId||undefined});setActive(q);setAnswers([]);setKeys(items.map(x=>x.correct));await load()}catch(e){setError(quizError(e))}finally{setBusy(false)}};
  const counts=useMemo(()=>{const map=new Map();answers.forEach(a=>{const uid=a.participant_uid;const prev=map.get(uid)||{uid,alias:a.alias,correct:0,answers:0};prev.answers++;if(keys[a.question_index]===a.option_index)prev.correct++;map.set(uid,prev)});return Array.from(map.values()).sort((a,b)=>b.correct-a.correct)},[answers,keys]);
  const link=active?window.location.origin+'/?join='+active.id:'';
+ const startQuiz=async()=>{if(!active)return;setBusy(true);setError('');try{const started=await learningApi.startQuiz(active.id);setActive(started);await load()}catch(e){setError(quizError(e))}finally{setBusy(false)}};
+ const locale={
+  kk:{choose:'Тест кімге арналған?',public:'QR арқылы еркін қатысу (бұрынғы режим)',start:'START — сыныпқа жіберу',draft:'Тест дайын. START басқанда сынып оқушыларына автоматты шақыру жіберіледі.',private:'Тек осы сыныпқа қабылданған оқушылар қатыса алады.',notStarted:'Тест әлі басталмады'},
+  ru:{choose:'Для кого викторина?',public:'Свободный QR-доступ (старый режим)',start:'START — отправить классу',draft:'Тест готов. Нажмите START, чтобы уведомить учеников выбранного класса.',private:'Участвовать могут только подтвержденные ученики класса.',notStarted:'Викторина еще не началась'},
+  en:{choose:'Quiz audience',public:'Open QR access (existing mode)',start:'START — notify class',draft:'Quiz prepared. Press START to invite enrolled students.',private:'Only approved members of this class can join.',notStarted:'Quiz has not started'}
+ };
+ const t=k=>locale[lang]?.[k]||locale.kk[k]||k;
  return <Panel title="Live Quiz" desc={T(lang,'quizDesc')}>
-  {!active&&<><div className="learning-form"><label>{T(lang,'quizName')}<input value={title} maxLength={100} onChange={e=>setTitle(e.target.value)}/></label></div>
+  {!active&&<><div className="learning-form"><label>{T(lang,'quizName')}<input value={title} maxLength={100} onChange={e=>setTitle(e.target.value)}/></label><label>{t('choose')}<select value={classId} onChange={e=>setClassId(e.target.value)}><option value="">{t('public')}</option>{classes.map(c=><option key={c.id} value={c.id}>{c.name} ({c.grade}{c.letter})</option>)}</select></label></div>
   <div className="question-list">{items.map((q,i)=><div key={i} className="learning-question"><header><strong>{T(lang,'question')} #{i+1}</strong>{items.length>1&&<button title="Remove" onClick={()=>setItems(v=>v.filter((_,j)=>j!==i))}><Trash2 size={17}/></button>}</header><input aria-label="Question" value={q.prompt} onChange={e=>edit(i,'prompt',e.target.value)}/><div className="option-grid">{q.options.map((o,j)=><label key={j}><span>{String.fromCharCode(65+j)}</span><input value={o} maxLength={90} onChange={e=>edit(i,'options',q.options.map((x,k)=>k===j?e.target.value:x))}/><input type="radio" name={'correct-'+i} checked={q.correct===j} onChange={()=>edit(i,'correct',j)} title={T(lang,'correct')}/></label>)}</div></div>)}</div>
   <div className="learning-actions"><button className="learning-secondary" onClick={()=>setItems(v=>v.length<10?[...v,{prompt:'',options:['','','',''],correct:0}]:v)}><Plus size={16}/>{T(lang,'addQuestion')}</button><Button disabled={busy} onClick={create}><Play size={16}/>{T(lang,'create')}</Button></div></>}
-  {active&&<><div className="room-header"><div><small>{T(lang,'room')}</small><h3>{active.title}</h3><code>{active.id}</code><p><a href={link} target="_blank" rel="noopener noreferrer">{link}</a></p></div>{qr&&<img src={qr} width="165" height="165" alt="QR link to quiz"/>}</div>
-   <div className="learning-actions"><button className="learning-secondary" onClick={()=>navigator.clipboard.writeText(link)}><Copy size={16}/>{T(lang,'copy')}</button>{active.status==='open'&&<Button onClick={async()=>{try{await learningApi.closeQuiz(active.id);setActive({...active,status:'closed'});await load()}catch(e){setError(report(e))}}}><Square size={16}/>{T(lang,'closeRoom')}</Button>}<button className="learning-secondary" onClick={()=>{setActive(null);setAnswers([])}}><X size={16}/>{T(lang,'finish')}</button></div>
+  {active&&<><div className="room-header"><div><small>{T(lang,'room')} {active.class_id?'· '+(classes.find(c=>c.id===active.class_id)?.name||active.class_id):''}</small><h3>{active.title}</h3><code>{active.id}</code>{active.status==='draft'?<p className="learning-notice">{t('draft')}</p>:<p><a href={link} target="_blank" rel="noopener noreferrer">{link}</a></p>}</div>{qr&&active.status!=='draft'&&<img src={qr} width="165" height="165" alt="QR link to quiz"/>}</div>
+   <div className="learning-actions">{active.status==='draft'&&<Button disabled={busy} onClick={startQuiz}><Play size={16}/>{t('start')}</Button>}{active.status!=='draft'&&<button className="learning-secondary" onClick={()=>navigator.clipboard.writeText(link)}><Copy size={16}/>{T(lang,'copy')}</button>}{active.status==='open'&&<Button disabled={busy} onClick={async()=>{setBusy(true);try{await learningApi.closeQuiz(active.id);setActive({...active,status:'closed'});await load()}catch(e){setError(quizError(e))}finally{setBusy(false)}}}><Square size={16}/>{T(lang,'closeRoom')}</Button>}<button className="learning-secondary" onClick={()=>{setActive(null);setAnswers([])}}><X size={16}/>{T(lang,'finish')}</button></div>
    <h3 className="section-title">{T(lang,'results')} · {counts.length} {T(lang,'participants')}</h3><p className="learning-notice">{T(lang,'scoreDemo')}</p>
    <div className="leaderboard">{counts.map((p,i)=><div key={p.uid} className="leader-row"><span>#{i+1}</span><b>{p.alias}</b><span>{p.correct}/{active.questions.length}</span><strong>{p.correct*20} XP</strong></div>)}</div>
   </>}
-  {!active&&rows.length>0&&<div className="previous-quizzes"><h3>{T(lang,'results')}</h3>{rows.map(q=><button key={q.id} onClick={()=>{setActive(q);setAnswers([])}}>{q.title} · {q.status==='open'?'● Live':'Closed'} <ArrowRight size={16}/></button>)}</div>}
+  {!active&&rows.length>0&&<div className="previous-quizzes"><h3>{T(lang,'results')}</h3>{rows.map(q=><button key={q.id} onClick={()=>{setActive(q);setAnswers([])}}>{q.title} · {q.status==='open'?'● Live':q.status==='draft'?t('notStarted'):'Closed'} <ArrowRight size={16}/></button>)}</div>}
   <Msg error={error}/>
   {error===T(lang,'quizPermissionDenied')&&<div className="learning-actions">
     <a className="learning-secondary" href="https://console.firebase.google.com/project/codequest-1bfc6/firestore/rules" target="_blank" rel="noopener noreferrer">Firebase Rules</a>

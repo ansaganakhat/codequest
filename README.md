@@ -1,5 +1,7 @@
 # CodeQuest AI — мектептік платформа (MVP v0.4)
 
+**Оқушы аккаунты және жеке сынып Quiz:** Оқушы email-логин/құпиясөзбен тіркеледі, мұғалім сынып кодымен берілген өтінішті растайды, ал сабақ викторинасын START басқанда расталған оқушыларға сайт ішінде шақыру келеді. Толық нұсқаулық: [STUDENT_CLASSES_QUIZ_SETUP_KK.md](STUDENT_CLASSES_QUIZ_SETUP_KK.md). Жаңа Firestore Rules-ті міндетті түрде Firebase Console-да жариялау қажет.
+
 **Жаңа функциялар (1–3 кезең):** Менің сыныптарым, Live Quiz + QR, Face Wheel (жергілікті камера), Gesture Game, ережеге негізделген оқу көмекшісі, викторина аналитикасы. **Іске қосу және жаңа Firestore Rules:** [LEARNING_STUDIO_SETUP_KK.md](LEARNING_STUDIO_SETUP_KK.md).
 
 **Ескерту:** GitHub жаңартуы Firestore Rules-ті автоматты жарияламайды; жаңа cloud-функцияларды қолдану үшін құжаттағы ережелер мен Anonymous Firebase Auth-ты қосу керек. ЖСН мен бала фотосы Firebase сынақ нұсқасында қабылданбайды.

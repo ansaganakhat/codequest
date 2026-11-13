@@ -6,7 +6,7 @@
 import { getAuth, signInAnonymously } from 'firebase/auth';
 import {
   addDoc, collection, doc, getDoc, getDocs, onSnapshot, query, setDoc,
-  where, writeBatch, updateDoc, serverTimestamp
+  where, writeBatch, updateDoc
 } from 'firebase/firestore';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
@@ -46,6 +46,29 @@ async function teacher(){
   if(!p.school_id && p.role!=='admin')throw new Error('teacher_school_missing');
   return p;
 }
+async function student(){
+  requireFirebase();
+  await auth.authStateReady();
+  const u=auth.currentUser;
+  if(!u||u.isAnonymous)throw new Error('student_login_required');
+  await u.reload();await u.getIdToken(true);
+  const p=await profile();
+  if(p.role!=='student'||p.status==='rejected')throw new Error('student_login_required');
+  if(!p.verified)throw new Error('verify_email_first');
+  return p;
+}
+const classDoc=id=>doc(store,'classrooms',String(id));
+const memberDoc=(classId,uid)=>doc(store,'class_memberships',String(classId)+'_'+String(uid));
+const membershipsCol=()=>collection(store,'class_memberships');
+const invitationDoc=id=>doc(store,'classrooms',String(id),'active_quiz','current');
+function classCode(v){const id=String(v||'').trim();if(!/^[A-Za-z0-9]{20}$/.test(id))throw new Error('class_code_invalid');return id}
+async function teacherClass(id){
+ const p=await teacher();
+ const classId=classCode(id);
+ const snap=await getDoc(classDoc(classId));
+ if(!snap.exists()||snap.data().owner_uid!==p.id)throw new Error('class_not_owned');
+ return {p,id:classId,...snap.data()};
+}
 function tidy(s,max=80){return String(s||'').replace(/\s+/g,' ').trim().slice(0,max)}
 function cleanItems(items){
   if(!Array.isArray(items)||items.length<1||items.length>10)throw new Error('quiz_question_count');
@@ -74,6 +97,55 @@ export const learningApi={
     const snap=await getDocs(query(collection(store,'classrooms'),where('owner_uid','==',p.id)));
     return snap.docs.map(x=>({id:x.id,...x.data()})).sort((a,b)=>b.created_at-a.created_at);
   },
+  // Memberships are explicitly approved per-class by the teacher.
+  async joinClassroom(input){
+    const p=await student();
+    const classId=classCode(input);
+    const snap=await getDoc(classDoc(classId));
+    if(!snap.exists())throw new Error('class_not_found');
+    const data=snap.data();
+    const ref=memberDoc(classId,p.id);
+    const existing=await getDoc(ref);
+    if(existing.exists())throw new Error('class_request_already_exists');
+    const member={
+      class_id:classId,owner_uid:data.owner_uid,student_uid:p.id,
+      student_name:String(p.full_name||p.first_name||'Оқушы').slice(0,130),
+      class_name:data.name,status:'pending',created_at:Date.now()
+    };
+    await setDoc(ref,member);
+    return {id:ref.id,...member};
+  },
+  async myClassMemberships(){
+    const p=await student();
+    const snaps=await getDocs(query(membershipsCol(),where('student_uid','==',p.id)));
+    return snaps.docs.map(d=>({id:d.id,...d.data()}));
+  },
+  listenMyClassMemberships(uid,cb,onError=()=>{}){
+    requireFirebase();
+    return onSnapshot(query(membershipsCol(),where('student_uid','==',uid)),snaps=>{
+      cb(snaps.docs.map(d=>({id:d.id,...d.data()})));
+    },onError);
+  },
+  listenClassQuiz(classId,cb,onError=()=>{}){
+    requireFirebase();
+    return onSnapshot(invitationDoc(classCode(classId)),snap=>{
+      cb(snap.exists()?{...snap.data(),id:snap.id}:null);
+    },onError);
+  },
+  async classMembers(classId){
+    const clazz=await teacherClass(classId);
+    const snaps=await getDocs(query(membershipsCol(),where('owner_uid','==',clazz.p.id)));
+    return snaps.docs.map(d=>({id:d.id,...d.data()})).filter(m=>m.class_id===clazz.id);
+  },
+  async decideMembership(classId,uid,decision){
+    const clazz=await teacherClass(classId);
+    if(!['approved','rejected'].includes(decision))throw new Error('invalid_membership_decision');
+    const ref=memberDoc(clazz.id,uid);
+    const snap=await getDoc(ref);
+    if(!snap.exists()||snap.data().owner_uid!==clazz.p.id||snap.data().class_id!==clazz.id)throw new Error('membership_missing');
+    await updateDoc(ref,{status:decision});
+    return {ok:true};
+  },
   async createQuiz(input){
     const p=await teacher();
     const items=cleanItems(input.items);
@@ -81,9 +153,11 @@ export const learningApi={
     if(title.length<3)throw new Error('quiz_title_required');
     const ref=doc(collection(store,'quizzes'));  // unpredictable share link, not a guessable 4-digit code
     const publicQuestions=items.map(({prompt,options})=>({prompt,options}));
+    const classroom=input.class_id?await teacherClass(input.class_id):null;
     const quiz={
       owner_uid:p.id,school_id:Number(p.school_id||0),title,
-      questions:publicQuestions,status:'open',created_at:Date.now()
+      questions:publicQuestions,status:classroom?'draft':'open',created_at:Date.now(),
+      ...(classroom?{class_id:classroom.id}:{})
     };
     const batch=writeBatch(store);
     batch.set(ref,quiz);
@@ -98,10 +172,35 @@ export const learningApi={
     const snap=await getDocs(query(collection(store,'quizzes'),where('owner_uid','==',p.id)));
     return snap.docs.map(x=>({id:x.id,...x.data()})).sort((a,b)=>b.created_at-a.created_at);
   },
+  async startQuiz(roomId){
+    const p=await teacher();
+    const room=await getDoc(doc(store,'quizzes',normalizeQuizRoomId(roomId)));
+    if(!room.exists()||room.data().owner_uid!==p.id||room.data().status!=='draft'||!room.data().class_id)throw new Error('quiz_not_startable');
+    const klass=await teacherClass(room.data().class_id);
+    const stamp=Date.now();
+    const b=writeBatch(store);
+    b.update(room.ref,{status:'open',started_at:stamp});
+    b.set(invitationDoc(klass.id),{
+      owner_uid:p.id,class_id:klass.id,quiz_id:room.id,title:room.data().title,
+      status:'open',started_at:stamp
+    });
+    await b.commit();
+    return {id:room.id,...room.data(),status:'open',started_at:stamp};
+  },
   async closeQuiz(roomId){
     const p=await teacher();
-    await updateDoc(doc(store,'quizzes',roomId),{status:'closed',closed_at:Date.now()});
-    return p;
+    const room=await getDoc(doc(store,'quizzes',normalizeQuizRoomId(roomId)));
+    if(!room.exists()||room.data().owner_uid!==p.id||room.data().status!=='open')throw new Error('quiz_not_open');
+    const b=writeBatch(store),stamp=Date.now();
+    b.update(room.ref,{status:'closed',closed_at:stamp});
+    if(room.data().class_id){
+      const alert=await getDoc(invitationDoc(room.data().class_id));
+      if(alert.exists()&&alert.data().quiz_id===room.id){
+        b.update(alert.ref,{status:'closed'});
+      }
+    }
+    await b.commit();
+    return {ok:true};
   },
   async getQuiz(roomId){
     requireFirebase();

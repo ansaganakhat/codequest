@@ -107,3 +107,41 @@
 .camera-permission-alert p{font-weight:700}
 .camera-permission-alert small{display:block;margin-top:6px;opacity:.88;font-size:12px}
 @media(max-width:620px){.camera-permission-box{padding:16px}.camera-permission-box .camera-request-button{width:100%}}
+
+/* Student logins, classroom enrollment and live class invitations. */
+.teacher-class-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:16px;margin-top:22px}
+.teacher-class-card{background:#fbfaff;border:1px solid #e8e6f6;border-radius:17px;padding:20px;min-width:0}
+.teacher-class-heading{display:flex;gap:12px;align-items:center}
+.teacher-class-heading>svg{color:#7455dd;flex:none}
+.teacher-class-heading h3{font-size:18px;color:#282646}
+.teacher-class-heading small{display:block;color:#8892ac;margin-top:5px}
+.class-code-line{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;background:#eeeafe;border-radius:11px;padding:13px;margin:17px 0}
+.class-code-line span{display:grid;gap:7px;min-width:0}
+.class-code-line small{color:#686294}
+.class-code-line code{font-weight:800;color:#4b3caa;letter-spacing:.6px;word-break:break-word}
+.teacher-class-card h4{font-size:14px;margin:15px 0 10px}
+.class-members-list{display:grid;gap:9px}
+.class-member-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;border:1px solid #ececf5;border-radius:11px;padding:11px;background:white}
+.class-member-row span{display:grid;gap:5px}
+.class-member-row strong{font-size:13px}
+.class-member-row small{font-size:11px;color:#71809b}
+.class-member-actions{display:flex;gap:7px;flex-wrap:wrap}
+.class-member-actions button{min-height:35px;padding:8px 10px;font-size:11px;box-shadow:none}
+.learning-hint{display:block;font-size:12px;color:#7985a0;line-height:1.6;margin:8px 0}
+.student-invite-banner{background:linear-gradient(110deg,#f3ecff,#eae5fc);color:#37277b;border:1px solid #d7c7fa;border-radius:14px;padding:16px 18px;display:flex;align-items:center;gap:15px;margin-bottom:16px}
+.student-invite-banner>svg{flex:none;color:#7150df}
+.student-invite-banner>div{flex:1;min-width:0;display:grid;gap:3px}
+.student-invite-banner b{font-size:13px}
+.student-invite-banner span{font-size:12px;overflow-wrap:anywhere}
+.student-invite-banner>button{border:0;border-radius:10px;padding:10px 14px;background:#7058e8;color:white;font-weight:800;flex:none}
+.student-hub .learning-form{align-items:end}
+.student-hub .learning-form .learning-hint{width:100%;flex-basis:100%}
+.student-class-code{color:#7a71a9;font-size:11px;word-break:break-all}
+.student-invites-list{display:grid;gap:12px;margin-top:13px}
+.student-invite-tile{display:flex;align-items:center;justify-content:space-between;gap:15px;flex-wrap:wrap;border:1px solid #e6e1f8;border-radius:14px;padding:17px}
+.student-invite-tile>div{display:grid;gap:6px}
+.student-invite-tile small{font-size:11px;color:#8369c2}
+.student-invite-tile b{font-size:17px}
+.student-invite-tile span{color:#858a9b;font-size:12px}
+.student-invite-tile .learning-button{color:white;text-decoration:none}
+@media(max-width:650px){.teacher-class-grid{grid-template-columns:1fr}.student-invite-banner{flex-wrap:wrap}.student-invite-banner>button{margin-left:auto}}

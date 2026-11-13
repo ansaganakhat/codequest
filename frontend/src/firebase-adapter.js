@@ -107,7 +107,8 @@ export const firebaseApi={
   async me(){return ownProfile()},
   async register(payload){
     if(payload.password!==payload.password_confirm)throw new Error('password_mismatch');
-    if(!['teacher','parent'].includes(payload.role))throw new Error('forbidden');
+    if(!['teacher','parent','student'].includes(payload.role))throw new Error('forbidden');
+    if(payload.role==='student'&&!payload.guardian_permission_acknowledged)throw new Error('guardian_permission_required');
     if(payload.role==='teacher'&&(!payload.school_id||!payload.subject_ids?.length))throw new Error('select_school_or_subject');
     if(!payload.consent)throw new Error('consent_required');
     if(fullName(payload).length>130)throw new Error('name_too_long');
@@ -119,12 +120,13 @@ export const firebaseApi={
       middle_name:String(payload.middle_name||'').trim(),
       full_name:fullName(payload),
       email:created.user.email,
-      phone:String(payload.phone||'').trim(),
+      phone:payload.role==='student'?'':String(payload.phone||'').trim(),
       role:payload.role,status:'pending',
       school_id:payload.role==='teacher'?Number(payload.school_id):null,
       subject_ids:payload.role==='teacher'?payload.subject_ids:[],
       consented_at:new Date().toISOString(),
-      created_at:new Date().toISOString()
+      created_at:new Date().toISOString(),
+      ...(payload.role==='student'?{guardian_permission_acknowledged:true}:{})
     };
     try {
       await setDoc(userRef(created.user.uid),profile);
@@ -160,10 +162,13 @@ export const firebaseApi={
     return await ownProfile();
   },
   async dashboard(){
-    const p=await requireRole('teacher','parent','admin');
+    const p=await requireRole('teacher','parent','admin','student');
     if(p.role==='parent'){
       const children=await fetchChildrenBy('parent_id',p.id);
       return {role:'parent',total_children:children.length,pending_children:children.filter(c=>c.status==='pending').length};
+    }
+    if(p.role==='student'){
+      return {role:'student',approved:p.status!=='rejected',email_verified:p.email_verified};
     }
     if(p.role==='teacher'){
       if(p.status!=='approved')return {role:'teacher',approved:false,total_students:0,school_name:p.school_name};
