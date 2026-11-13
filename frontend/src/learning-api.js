@@ -10,6 +10,7 @@ import {
 } from 'firebase/firestore';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
+import {normalizeQuizRoomId} from './quiz-room.js';
 
 const config={
   apiKey:import.meta.env.VITE_FIREBASE_API_KEY,
@@ -104,7 +105,7 @@ export const learningApi={
   },
   async getQuiz(roomId){
     requireFirebase();
-    const ref=doc(store,'quizzes',String(roomId));
+    const ref=doc(store,'quizzes',normalizeQuizRoomId(roomId));
     const snap=await getDoc(ref);
     if(!snap.exists())throw new Error('room_not_found');
     return {id:snap.id,...snap.data()};

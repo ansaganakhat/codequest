@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
+    "test": "node --test tests/quiz-room.test.js",
     "preview": "vite preview --host 0.0.0.0",
     "firebase:seed": "node scripts/firebase-seed.mjs",
     "firebase:admin": "node scripts/firebase-set-admin.mjs"
