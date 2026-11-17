@@ -46,7 +46,7 @@ export function StudentQuizBanner({user,lang='kk',onOpen}){
 }
 export function StudentHub({user,lang='kk',mode='classes'}){
  const {members,invitations,error,setError}=useStudentClassState(user);
- const [code,setCode]=useState(''),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
+ const [code,setCode]=useState(()=>new URLSearchParams(window.location.search).get('class')||''),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
  const join=async e=>{
   e.preventDefault();setError('');setMessage('');setBusy(true);
   try{await learningApi.joinClassroom(code);setMessage(T(lang,'joined'));setCode('')}
