@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {initializeTestEnvironment,assertFails,assertSucceeds} from '@firebase/rules-unit-testing';
-import {doc,setDoc,getDoc,getDocs,collection,query,where,updateDoc,writeBatch} from 'firebase/firestore';
+import {doc,setDoc,getDoc,getDocs,collection,query,where,updateDoc,writeBatch,deleteDoc} from 'firebase/firestore';
 
 // No production Firebase account is used. The emulator is started by CI.
 const classId='AbCdEf1234567890GhIJ';
@@ -47,10 +47,70 @@ test('Firestore rules: students join only after a teacher approves, class quizze
    await assertSucceeds(setDoc(doc(teacherSignup,'users','newteacher'),teacherProfile));
    await assertFails(setDoc(doc(learnerSignup,'users','newlearner'),learnerProfile));
    await assertFails(setDoc(doc(learnerSignup,'users','newlearner'),{...learnerProfile,guardian_permission_acknowledged:false}));
-   await assertSucceeds(setDoc(doc(learnerSignup,'users','newlearner'),{...learnerProfile,guardian_permission_acknowledged:true}));
+   // Standalone student registration is now disabled even when a consent
+   // checkbox is checked. The verified parent must issue a one-time ticket.
+   await assertFails(setDoc(doc(learnerSignup,'users','newlearner'),{...learnerProfile,guardian_permission_acknowledged:true}));
+   await assertSucceeds(setDoc(doc(parentSignup,'child_provisioning','newlearner'),{
+     parent_id:'newparent',email:'newlearner@example.com',created_at:Date.now()
+   }));
+   await assertFails(setDoc(doc(learnerSignup,'users','newlearner'),{
+     ...learnerProfile,guardian_permission_acknowledged:true,guardian_parent_id:'parent1'
+   }));
+   await assertSucceeds(setDoc(doc(learnerSignup,'users','newlearner'),{
+     ...learnerProfile,guardian_permission_acknowledged:true,guardian_parent_id:'newparent'
+   }));
    const child={full_name:'Sample Child',grade:5,class_letter:'А',school_id:2,parent_id:'newparent',status:'pending',created_at:new Date().toISOString()};
    await assertSucceeds(setDoc(doc(parentSignup,'students','child-for-parent'),child));
    await assertFails(setDoc(doc(learnerSignup,'students','child-for-learner'),{...child,parent_id:'newlearner'}));
+  });
+  const linkedUid='linkedKid0123456789AbCdEfGH';
+  await t.test('Parent-provisioned student account is linked to its guardian; no outsider can claim it',async()=>{
+   const childEmail='linked-child@example.com';
+   const kid=env.authenticatedContext(linkedUid,{email:childEmail,email_verified:false}).firestore();
+   const otherParent=env.authenticatedContext('parent2',{email:'parent2@example.com',email_verified:true}).firestore();
+   await env.withSecurityRulesDisabled(async ctx=>{
+    await setDoc(doc(ctx.firestore(),'users','parent2'),{id:'parent2',role:'parent',status:'approved',school_id:null,full_name:'Parent Two'});
+   });
+   const invitation={parent_id:'parent1',email:childEmail,created_at:Date.now()};
+   await assertFails(setDoc(doc(student,'child_provisioning',linkedUid),invitation));
+   await assertFails(setDoc(doc(otherParent,'child_provisioning',linkedUid),invitation));
+   await assertSucceeds(setDoc(doc(parent,'child_provisioning',linkedUid),invitation));
+   await assertFails(setDoc(doc(kid,'users',linkedUid),{
+    id:linkedUid,role:'student',status:'pending',school_id:null,subject_ids:[],phone:'',
+    first_name:'Kid',last_name:'Test',middle_name:'',full_name:'Test Kid',
+    email:childEmail,guardian_parent_id:'parent2',
+    guardian_permission_acknowledged:true,consented_at:new Date().toISOString(),created_at:new Date().toISOString()
+   }));
+   const profile={
+    id:linkedUid,role:'student',status:'pending',school_id:null,subject_ids:[],phone:'',
+    first_name:'Kid',last_name:'Test',middle_name:'',full_name:'Test Kid',
+    email:childEmail,guardian_parent_id:'parent1',
+    guardian_permission_acknowledged:true,consented_at:new Date().toISOString(),created_at:new Date().toISOString()
+   };
+   await assertSucceeds(setDoc(doc(kid,'users',linkedUid),profile));
+   await assertSucceeds(getDoc(doc(parent,'users',linkedUid)));
+   await assertFails(getDoc(doc(otherParent,'users',linkedUid)));
+   const linkedDoc={full_name:'Test Kid',grade:5,class_letter:'А',
+     school_id:2,parent_id:'parent1',auth_uid:linkedUid,status:'pending',created_at:new Date().toISOString()};
+   await assertFails(setDoc(doc(otherParent,'students','linked-child-new'),{...linkedDoc,parent_id:'parent2'}));
+   await assertSucceeds(setDoc(doc(parent,'students','linked-child-new'),linkedDoc));
+   await assertFails(updateDoc(doc(parent,'students','linked-child-new'),{auth_uid:'otherUidSomeFake123456789'}));
+   await assertFails(updateDoc(doc(kid,'users',linkedUid),{guardian_parent_id:'parent2'}));
+   const oldRecord={full_name:'Old Kid',grade:6,class_letter:'B',
+     school_id:2,parent_id:'parent1',status:'approved',created_at:new Date().toISOString()};
+   await env.withSecurityRulesDisabled(async ctx=>{
+    await setDoc(doc(ctx.firestore(),'students','old-child-record'),oldRecord);
+   });
+   await assertSucceeds(updateDoc(doc(parent,'students','old-child-record'),{auth_uid:linkedUid}));
+   await assertFails(updateDoc(doc(parent,'students','old-child-record'),{auth_uid:'otherUidSomeFake123456789'}));
+   await assertFails(updateDoc(doc(otherParent,'students','old-child-record'),{auth_uid:linkedUid}));
+   await assertSucceeds(setDoc(doc(parent,'child_provisioning','unusedInvitation11111111111'),{
+     parent_id:'parent1',email:'unused@example.com',created_at:Date.now()
+   }));
+   await assertFails(getDoc(doc(otherParent,'child_provisioning','unusedInvitation11111111111')));
+   await assertFails(setDoc(doc(kid,'child_provisioning','another'),invitation));
+   await assertSucceeds(deleteDoc(doc(parent,'child_provisioning',linkedUid)));
+   await assertFails(deleteDoc(doc(kid,'users',linkedUid)));
   });
   const classroom={owner_uid:'teacher1',school_id:2,name:'6-А',grade:6,letter:'А',created_at:ts};
   await t.test('Only the approved teacher can create their own class',async()=>{

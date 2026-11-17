@@ -7,13 +7,14 @@ import { initializeApp } from 'firebase/app';
 import {
   getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
   signOut, sendEmailVerification, deleteUser,
-  reauthenticateWithCredential, EmailAuthProvider, updatePassword,
+  reauthenticateWithCredential, EmailAuthProvider, updatePassword, setPersistence, inMemoryPersistence,
 } from 'firebase/auth';
 import {
   getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc,
   updateDoc, deleteDoc, query, where, runTransaction
 } from 'firebase/firestore';
 import { previewSchools, previewSubjects } from './catalog.js';
+import {validateChildCredentials,normalizeChildDetails,childNameParts} from './child-account.js';
 
 const options = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -25,6 +26,12 @@ export const firebaseReady = Object.values(options).every(x => typeof x === 'str
 const app = firebaseReady ? initializeApp(options) : null;
 const auth = app ? getAuth(app) : null;
 const store = app ? getFirestore(app) : null;
+// Secondary Firebase app isolates the child's one-time registration from the
+// parent's current Auth session. In-memory persistence avoids silently retaining
+// the child's credentials on a shared school or household computer.
+const childApp = firebaseReady ? initializeApp(options,'codequest-child-registration') : null;
+const childAuth = childApp ? getAuth(childApp) : null;
+const childStore = childApp ? getFirestore(childApp) : null;
 const userRef = uid => doc(store, 'users', String(uid));
 const childRef = id => doc(store,'students',String(id));
 const schoolRef = id => doc(store,'schools',String(id));
@@ -108,8 +115,9 @@ export const firebaseApi={
   async me(){return ownProfile()},
   async register(payload){
     if(payload.password!==payload.password_confirm)throw new Error('password_mismatch');
-    if(!['teacher','parent','student'].includes(payload.role))throw new Error('forbidden');
-    if(payload.role==='student'&&!payload.guardian_permission_acknowledged)throw new Error('guardian_permission_required');
+    // Student identities must now be created from a verified guardian account.
+    // Existing student accounts remain able to log in.
+    if(!['teacher','parent'].includes(payload.role))throw new Error('student_requires_parent');
     if(payload.role==='teacher'&&(!payload.school_id||!payload.subject_ids?.length))throw new Error('select_school_or_subject');
     if(!payload.consent)throw new Error('consent_required');
     if(fullName(payload).length>130)throw new Error('name_too_long');
@@ -211,7 +219,93 @@ export const firebaseApi={
   },
   async children(){
     const p=await requireRole('parent');
-    return (await fetchChildrenBy('parent_id',p.id)).map(s=>({...s,school_name:schoolById(s.school_id)?.name_kk||''}));
+    const children=await fetchChildrenBy('parent_id',p.id);
+    // Guardian access is constrained by immutable guardian_parent_id in
+    // users/{childUid}. Other students' email addresses are not readable.
+    return Promise.all(children.map(async child=>{
+      let account_email=null;
+      if(typeof child.auth_uid==='string'&&child.auth_uid){
+        try{
+          const profile=await getDoc(userRef(child.auth_uid));
+          if(profile.exists()&&profile.data().guardian_parent_id===p.id){
+            account_email=profile.data().email||null;
+          }
+        }catch(error){console.warn('Could not fetch linked child login',error.code||error.message)}
+      }
+      return {...child,account_email,school_name:schoolById(child.school_id)?.name_kk||''};
+    }));
+  },
+  async createChildAccount(raw){
+    const parent=await requireRole('parent');
+    const parentUser=requireUser();
+    await parentUser.reload();
+    await parentUser.getIdToken(true);
+    if(!parentUser.emailVerified)throw new Error('verify_email_first');
+    if(!childAuth||!childStore)throw new Error('firebase_not_ready');
+    const {email,password}=validateChildCredentials(raw);
+    let childDetails,existingRecord=null;
+    if(raw.existing_child_id){
+      const snap=await getDoc(childRef(raw.existing_child_id));
+      if(!snap.exists()||snap.data().parent_id!==parent.id)throw new Error('child_not_found');
+      if(snap.data().auth_uid)throw new Error('child_account_already_created');
+      existingRecord={id:snap.id,...snap.data()};
+      childDetails=normalizeChildDetails(snap.data());
+    }else{
+      childDetails=normalizeChildDetails(raw);
+    }
+    if(email===String(parent.email||'').toLowerCase())throw new Error('child_email_must_be_unique');
+    await childAuth.authStateReady();
+    await setPersistence(childAuth,inMemoryPersistence);
+    if(childAuth.currentUser)await signOut(childAuth);
+    // This only logs into the isolated secondary Auth app, not the parent app.
+    const credential=await createUserWithEmailAndPassword(childAuth,email,password);
+    const childUser=credential.user;
+    const invite=doc(store,'child_provisioning',childUser.uid);
+    const childUserDocument=doc(childStore,'users',childUser.uid);
+    let invitationCreated=false,profileCreated=false,linked=false,studentId=null;
+    try{
+      await setDoc(invite,{parent_id:parent.id,email:childUser.email,created_at:Date.now()});
+      invitationCreated=true;
+      const names=childNameParts(childDetails.full_name);
+      const now=new Date().toISOString();
+      await setDoc(childUserDocument,{
+        id:childUser.uid,...names,full_name:childDetails.full_name,
+        email:childUser.email,phone:'',role:'student',status:'pending',
+        school_id:null,subject_ids:[],consented_at:now,created_at:now,
+        guardian_permission_acknowledged:true,guardian_parent_id:parent.id
+      });
+      profileCreated=true;
+      if(existingRecord){
+        // Preserve the old student record, approval and class history.
+        await updateDoc(childRef(existingRecord.id),{auth_uid:childUser.uid});
+        studentId=existingRecord.id;
+      }else{
+        const student=await addDoc(studentCol(),{
+          ...childDetails,parent_id:parent.id,auth_uid:childUser.uid,
+          status:'pending',created_at:now
+        });
+        studentId=student.id;
+      }
+      linked=true;
+      let verificationSent=true;
+      try{await sendEmailVerification(childUser)}
+      catch(error){verificationSent=false;console.warn('Child verification email delivery',error.code||error.message)}
+      return {id:studentId,email:childUser.email,verificationSent};
+    }catch(error){
+      if(!linked){
+        // Best-effort rollback. A failed Firestore write must not create
+        // a parentless valid student identity.
+        if(profileCreated)try{await deleteDoc(childUserDocument)}
+        catch(cleanup){console.warn('Child profile cleanup failed',cleanup.code||cleanup.message)}
+        try{await deleteUser(childUser)}
+        catch(cleanup){console.warn('Child Auth cleanup failed',cleanup.code||cleanup.message)}
+      }
+      throw error;
+    }finally{
+      if(invitationCreated)try{await deleteDoc(invite)}
+      catch(cleanup){console.warn('Child signup invitation cleanup failed',cleanup.code||cleanup.message)}
+      try{await signOut(childAuth)}catch{}
+    }
   },
   async addChild(payload){
     const p=await requireRole('parent');

@@ -33,15 +33,47 @@ service cloud.firestore {
       allow get, list: if true;
       allow create, update, delete: if admin();
     }
+    function childInvitePath(uid) {
+      return /databases/$(database)/documents/child_provisioning/$(uid);
+    }
+    function studentProfilePath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+    function parentProvisioned(uid, parentUid) {
+      return exists(studentProfilePath(uid))
+        && get(studentProfilePath(uid)).data.role == 'student'
+        && get(studentProfilePath(uid)).data.guardian_parent_id == parentUid;
+    }
+    // Verified parents issue one-time signup tickets for an exact child UID/email.
+    match /child_provisioning/{uid} {
+      allow get: if admin() ||
+        (activeParent() && resource.data.parent_id == request.auth.uid);
+      allow list: if admin();
+      allow create: if activeParent()
+        && request.auth.token.email_verified == true
+        && request.resource.data.keys().hasOnly(['parent_id','email','created_at'])
+        && request.resource.data.keys().hasAll(['parent_id','email','created_at'])
+        && request.resource.data.parent_id == request.auth.uid
+        && request.resource.data.email is string
+        && request.resource.data.email.size() <= 254
+        && request.resource.data.created_at is int;
+      allow update: if false;
+      allow delete: if admin() ||
+        (activeParent() && resource.data.parent_id == request.auth.uid);
+    }
     match /users/{uid} {
-      allow get: if admin() || (signedIn() && request.auth.uid == uid);
+      // A parent may view only the child account whose guardian UID matches.
+      allow get: if admin() || (signedIn() && request.auth.uid == uid)
+        || (activeParent()
+          && resource.data.role == 'student'
+          && resource.data.get('guardian_parent_id', '') == request.auth.uid);
       allow list: if admin();
       allow create: if signedIn()
         && request.auth.uid == uid
         && request.resource.data.keys().hasOnly([
           'id','last_name','first_name','middle_name','full_name','email','phone',
           'role','status','school_id','subject_ids','consented_at','created_at',
-          'guardian_permission_acknowledged'
+          'guardian_permission_acknowledged','guardian_parent_id'
         ])
         && request.resource.data.keys().hasAll([
           'id','last_name','first_name','middle_name','full_name','email',
@@ -64,7 +96,11 @@ service cloud.firestore {
         && (request.resource.data.role != 'student' ||
           (request.resource.data.get('guardian_permission_acknowledged', false) == true
            && request.resource.data.school_id == null
-           && request.resource.data.subject_ids.size() == 0));
+           && request.resource.data.subject_ids.size() == 0
+           && request.resource.data.guardian_parent_id is string
+           && exists(childInvitePath(uid))
+           && get(childInvitePath(uid)).data.parent_id == request.resource.data.guardian_parent_id
+           && get(childInvitePath(uid)).data.email == request.auth.token.email));
       allow update: if admin() || (
         signedIn() && request.auth.uid == uid
         && resource.data.role in ['teacher','parent','admin']
@@ -78,7 +114,14 @@ service cloud.firestore {
           )
         )
       );
-      allow delete: if admin();
+      // Roll back unfinished child signup before the parent revokes invitation.
+      allow delete: if admin() || (
+        signedIn() && uid == request.auth.uid
+        && resource.data.role == 'student'
+        && resource.data.status == 'pending'
+        && exists(childInvitePath(uid))
+        && get(childInvitePath(uid)).data.parent_id == resource.data.guardian_parent_id
+      );
     }
     match /students/{childId} {
       allow get, list: if admin()
@@ -87,7 +130,7 @@ service cloud.firestore {
       allow create: if activeParent()
         && request.auth.token.email_verified == true
         && request.resource.data.keys().hasOnly([
-          'full_name','grade','class_letter','school_id','parent_id','status','created_at'
+          'full_name','grade','class_letter','school_id','parent_id','status','created_at','auth_uid'
         ])
         && request.resource.data.keys().hasAll([
           'full_name','grade','class_letter','school_id','parent_id','status','created_at'
@@ -100,7 +143,11 @@ service cloud.firestore {
         && request.resource.data.grade >= 1
         && request.resource.data.grade <= 11
         && request.resource.data.school_id is int
-        && request.resource.data.class_letter is string;
+        && request.resource.data.class_letter is string
+        && (!request.resource.data.keys().hasAny(['auth_uid']) ||
+          (request.resource.data.auth_uid is string
+           && request.resource.data.auth_uid.size() >= 20
+           && parentProvisioned(request.resource.data.auth_uid,request.auth.uid)));
       allow update: if admin() || (
         activeParent()
         && resource.data.parent_id == request.auth.uid
@@ -111,6 +158,16 @@ service cloud.firestore {
         && request.resource.data.grade is int
         && request.resource.data.grade >= 1 && request.resource.data.grade <= 11
         && request.resource.data.full_name is string
+      ) || (
+        // Add durable login to a historic child record without resetting approval.
+        activeParent()
+        && request.auth.token.email_verified == true
+        && resource.data.parent_id == request.auth.uid
+        && !resource.data.keys().hasAny(['auth_uid'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['auth_uid'])
+        && request.resource.data.auth_uid is string
+        && request.resource.data.auth_uid.size() >= 20
+        && parentProvisioned(request.resource.data.auth_uid,request.auth.uid)
       );
       allow delete: if admin();
     }

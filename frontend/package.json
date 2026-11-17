@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
-    "test": "node --test tests/quiz-room.test.js tests/quiz-export.test.js tests/finger-count.test.js tests/tutor-provider.test.js tests/tutor-cloudflare.test.js tests/face-wheel-model.test.js",
+    "test": "node --test tests/quiz-room.test.js tests/quiz-export.test.js tests/finger-count.test.js tests/tutor-provider.test.js tests/tutor-cloudflare.test.js tests/face-wheel-model.test.js tests/child-account.test.js",
     "preview": "vite preview --host 0.0.0.0",
     "firebase:seed": "node scripts/firebase-seed.mjs",
     "firebase:admin": "node scripts/firebase-set-admin.mjs",
