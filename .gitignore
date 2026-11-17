@@ -11,3 +11,6 @@ __pycache__/
 private_uploads/
 *.log
 .DS_Store
+# Cloudflare local development secrets and build artifacts
+.dev.vars*
+.wrangler/

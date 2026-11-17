@@ -376,14 +376,14 @@ function Tutor({lang}){
   setBusy(true);setError('');
   try{
    const token=await firebaseApi.getIdTokenForTutor();
-   const response=await fetch('/.netlify/functions/tutor',{
+   const response=await fetch('/api/tutor',{
     method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
     body:JSON.stringify({question:ask})
    });
    const data=await response.json().catch(()=>({}));
    if(!response.ok){
     const messages={
-      ai_not_configured:['ЖИ әлі қосылмаған: Netlify серверіне GEMINI_API_KEY енгізіңіз. Дайын оқу кеңестері жұмыс істей береді.','ИИ еще не подключен: добавьте GEMINI_API_KEY в Netlify. Учебные подсказки доступны.','AI is not configured: add GEMINI_API_KEY to Netlify. Built-in study hints still work.'],
+      ai_not_configured:['ЖИ әлі қосылмаған: Cloudflare Pages ішіне GEMINI_API_KEY енгізіңіз. Дайын оқу кеңестері жұмыс істей береді.','ИИ еще не подключен: добавьте GEMINI_API_KEY в Cloudflare Pages. Учебные подсказки доступны.','AI is not configured: add GEMINI_API_KEY to Cloudflare Pages. Built-in study hints still work.'],
       ai_api_key_invalid:['Gemini API кілтін тексеріңіз.','Проверьте ключ Gemini API.','Check your Gemini API key.'],
       ai_model_not_found:['Gemini моделі табылмады. Netlify-дегі GEMINI_MODEL мәнін тексеріңіз.','Модель Gemini не найдена. Проверьте GEMINI_MODEL.','Gemini model not found. Check GEMINI_MODEL.'],
       ai_quota_exceeded:['ЖИ лимиті таусылды. Google AI Studio квотасын тексеріңіз.','Превышена квота ИИ. Проверьте лимиты Google AI Studio.','AI quota exceeded. Check Google AI Studio limits.'],

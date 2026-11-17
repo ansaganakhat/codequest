@@ -1,6 +1,8 @@
 # CodeQuest AI — мектептік платформа (MVP v0.4)
 
-**AI Tutor — компьютер ұйқы режимінде де жұмыс істейтін Gemini:** Netlify Function `GEMINI_API_KEY` барда Gemini API-ге тікелей қосылады, ал бөлек HTTPS FreeLLMAPI серверін резервтік нұсқа ретінде қолдайды. Баптау: [CODEQUEST_ALWAYS_ON_AI_KK.md](CODEQUEST_ALWAYS_ON_AI_KK.md).
+**Cloudflare Pages көшіру:** React, Firebase және Gemini AI Tutor Cloudflare Pages-ке дайындалды. GitHub-тағы кодты Cloudflare Pages → GitHub арқылы жариялау және `GEMINI_API_KEY` секретін енгізу керек. Толық: [CLOUDFLARE_PAGES_SETUP_KK.md](CLOUDFLARE_PAGES_SETUP_KK.md). Ескі Netlify сайты тексерілгенше сақталады.
+
+**AI Tutor — компьютер ұйқы режимінде де жұмыс істейтін Gemini:** Cloudflare Pages Function `GEMINI_API_KEY` барда Gemini API-ге тікелей қосылады, ал бөлек HTTPS FreeLLMAPI серверін резервтік нұсқа ретінде қолдайды. Баптау: [CODEQUEST_ALWAYS_ON_AI_KK.md](CODEQUEST_ALWAYS_ON_AI_KK.md).
 
 **Оқушы аккаунты және жеке сынып Quiz:** Оқушы email-логин/құпиясөзбен тіркеледі, мұғалім сынып кодымен берілген өтінішті растайды, ал сабақ викторинасын START басқанда расталған оқушыларға сайт ішінде шақыру келеді. Толық нұсқаулық: [STUDENT_CLASSES_QUIZ_SETUP_KK.md](STUDENT_CLASSES_QUIZ_SETUP_KK.md). Жаңа Firestore Rules-ті міндетті түрде Firebase Console-да жариялау қажет.
 
