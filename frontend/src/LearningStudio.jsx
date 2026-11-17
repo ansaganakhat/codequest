@@ -6,7 +6,8 @@ import QRCode from 'qrcode';
 import {learningApi} from './learning-api.js';
 import {firebaseApi} from './firebase-adapter.js';
 import {downloadQuiz} from './quiz-export.js';
-import {countRaisedFingers} from './finger-count.js';
+import {countRaisedFingers,isOkGesture} from './finger-count.js';
+import {freshGestureSelection,advanceGestureSelection,GESTURE_NEXT_FEEDBACK_MS} from './gesture-selection.js';
 import {FACE_WHEEL_MODEL_URL,faceScanTiles} from './face-wheel-model.js';
 import {normalizeQuizRoomId} from './quiz-room.js';
 
@@ -302,70 +303,133 @@ export function QuizGuest({lang='kk',roomId=''}){
 }
 
 function Gesture({lang}){
- const video=useRef(null),stream=useRef(null),model=useRef(null),raf=useRef(0),hold=useRef({value:0,frames:0}),choice=useRef(-1),qIndexRef=useRef(0);
- const [enabled,setEnabled]=useState(false),[busy,setBusy]=useState(false),[picked,setPicked]=useState(-1),[question,setQuestion]=useState(0),[xp,setXp]=useState(0),[fingerNumber,setFingerNumber]=useState(0),[notice,setNotice]=useState(''),[error,setError]=useState('');
- const answer=n=>{if(!Number.isInteger(n)||n<0||n>3||choice.current>=0)return;choice.current=n;setPicked(n);setXp(v=>v+(gentle[qIndexRef.current%gentle.length].correct===n?20:0));setNotice(gentle[qIndexRef.current%gentle.length].info)};
- const stop=()=>{cancelAnimationFrame(raf.current);stream.current?.getTracks().forEach(t=>t.stop());stream.current=null;model.current?.close?.();model.current=null;setEnabled(false);hold.current={value:0,frames:0}};
- useEffect(()=>()=>{cancelAnimationFrame(raf.current);stream.current?.getTracks().forEach(t=>t.stop());model.current?.close?.()},[]);
+ const video=useRef(null),stream=useRef(null),model=useRef(null),raf=useRef(0),nextTimer=useRef(null);
+ const choice=useRef(-1),qIndexRef=useRef(0),selection=useRef(freshGestureSelection());
+ const [enabled,setEnabled]=useState(false),[busy,setBusy]=useState(false),[picked,setPicked]=useState(-1);
+ const [question,setQuestion]=useState(0),[xp,setXp]=useState(0),[fingerNumber,setFingerNumber]=useState(0);
+ const [okVisible,setOkVisible]=useState(false),[notice,setNotice]=useState(''),[error,setError]=useState('');
+
+ // The score is awarded once, when fingers disappear for 800 ms or when
+ // the student deliberately holds the OK sign. It is never awarded on hover.
+ const answer=n=>{
+  if(!Number.isInteger(n)||n<0||n>3||choice.current>=0)return;
+  choice.current=n;
+  selection.current={...selection.current,preview:n,confirmed:n,missingSince:null};
+  setPicked(n);
+  setXp(value=>value+(gentle[qIndexRef.current%gentle.length].correct===n?20:0));
+  setNotice(gentle[qIndexRef.current%gentle.length].info);
+ };
+ const cancelPendingNext=()=>{
+  if(nextTimer.current!==null){clearTimeout(nextTimer.current);nextTimer.current=null}
+ };
+ const next=(fromOk=false)=>{
+  cancelPendingNext();
+  choice.current=-1;
+  // Holding OK through a question transition must not advance again.
+  selection.current=freshGestureSelection(fromOk);
+  qIndexRef.current+=1;
+  setQuestion(value=>value+1);
+  setPicked(-1);setNotice('');setFingerNumber(0);setOkVisible(false);
+ };
+ const stop=()=>{
+  cancelAnimationFrame(raf.current);cancelPendingNext();
+  stream.current?.getTracks().forEach(track=>track.stop());
+  stream.current=null;model.current?.close?.();model.current=null;
+  selection.current=freshGestureSelection();choice.current=-1;
+  setEnabled(false);setPicked(-1);setFingerNumber(0);setOkVisible(false);setNotice('');
+ };
+ useEffect(()=>()=>{cancelAnimationFrame(raf.current);cancelPendingNext();stream.current?.getTracks().forEach(track=>track.stop());model.current?.close?.()},[]);
  const start=async()=>{
   if(busy)return;
   setBusy(true);setError('');
   let track;
-  try{
-   track=await requestCamera(true);
-  }catch(e){
-   setError(await cameraAccessError(e,lang));
-   setBusy(false);return;
-  }
+  try{track=await requestCamera(true)}
+  catch(e){setError(await cameraAccessError(e,lang));setBusy(false);return}
   stream.current=track;
   try{
    if(!video.current)throw new Error('Video element not found');
-   video.current.srcObject=track;
-   setEnabled(true);
-   try{await video.current.play()}catch(e){
-    const playback=new Error(e?.message||'Cannot play video');
-    playback.name='CameraPlaybackError';
-    throw playback;
-   }
+   video.current.srcObject=track;setEnabled(true);
+   await video.current.play();
    const {HandLandmarker,FilesetResolver}=await import('@mediapipe/tasks-vision');
    const files=await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22-rc.20250304/wasm');
-   model.current=await HandLandmarker.createFromOptions(files,{baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',delegate:'CPU'},runningMode:'VIDEO',numHands:1});
+   model.current=await HandLandmarker.createFromOptions(files,{
+    baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',delegate:'CPU'},
+    runningMode:'VIDEO',numHands:1
+   });
    let lastFrame=-1;
    const loop=()=>{
-    const v=video.current;if(v&&model.current&&v.videoWidth&&v.currentTime!==lastFrame){
-      lastFrame=v.currentTime;
-      const res=model.current.detectForVideo(v,performance.now()),lm=res.landmarks?.[0];
-      if(lm){
-       const raised=countRaisedFingers(lm);
-       setFingerNumber(raised);
-       setPicked(choice.current>=0?choice.current:(raised>=1&&raised<=4?raised-1:-1));
-       if(raised>=1&&raised<=4&&choice.current<0){
-        const prior=hold.current;
-        hold.current=prior.value===raised?{value:raised,frames:prior.frames+1}:{value:raised,frames:1};
-        // 10 continuous frames suppress transient detections and accidental answers.
-        if(hold.current.frames>=10)answer(raised-1);
-       }else{
-        hold.current={value:0,frames:0};
-       }
+    const v=video.current;
+    if(v&&model.current&&v.videoWidth&&v.currentTime!==lastFrame){
+     lastFrame=v.currentTime;
+     try{
+      const now=performance.now();
+      const res=model.current.detectForVideo(v,now);
+      const landmarks=res.landmarks?.[0];
+      const ok=!!landmarks&&isOkGesture(landmarks);
+      const raised=landmarks?countRaisedFingers(landmarks):0;
+      const signal=ok?{kind:'ok'}:raised>=1&&raised<=4?{kind:'fingers',count:raised}:{kind:'none'};
+      setFingerNumber(old=>old===(ok?0:raised)?old:(ok?0:raised));
+      setOkVisible(old=>old===ok?old:ok);
+      const output=advanceGestureSelection(selection.current,signal,now);
+      selection.current=output.state;
+      const highlighted=output.state.confirmed>=0?output.state.confirmed:output.state.preview;
+      setPicked(old=>old===highlighted?old:highlighted);
+      if(output.event?.type==='confirm')answer(output.event.index);
+      if(output.event?.type==='confirm_and_next'){
+       answer(output.event.index);
+       cancelPendingNext();
+       // Give the learner a moment to see the selected answer and feedback.
+       nextTimer.current=setTimeout(()=>next(true),GESTURE_NEXT_FEEDBACK_MS);
       }
+      if(output.event?.type==='next')next(true);
+     }catch(e){
+      setError(T(lang,'gestureModelError')+' '+report(e));
+      stop();
+      return;
+     }
     }
     raf.current=requestAnimationFrame(loop);
-   };loop();
+   };
+   loop();
   }catch(e){
-   setError(e?.name==='CameraPlaybackError'
+   setError(e?.name==='NotAllowedError'
     ?T(lang,'cameraPlaybackError')+' — '+T(lang,'cameraDiagnostic')+': '+e.message
     :T(lang,'gestureModelError')+' '+report(e));
    stop();
   }finally{setBusy(false)}
  };
- const next=()=>{choice.current=-1;hold.current={value:0,frames:0};setFingerNumber(0);qIndexRef.current+=1;setPicked(-1);setNotice('');setQuestion(x=>x+1)};
  const q=gentle[question%gentle.length];
+ const chosen=choice.current>=0;
+ const letter=picked>=0?String.fromCharCode(65+picked):'';
+ const guidance=chosen
+  ?(lang==='ru'?'Ответ '+letter+' зафиксирован. Для следующего вопроса покажите 👌 OK или нажмите кнопку.':lang==='en'?'Answer '+letter+' confirmed. Show 👌 OK or press Next.':'Жауап '+letter+' бекітілді. Келесі сұраққа өту үшін 👌 OK көрсетіңіз немесе батырманы басыңыз.')
+  :picked>=0
+   ?(lang==='ru'?'Предварительно '+letter+'. Можно менять количество пальцев. Уберите руку на 0,8 сек. для подтверждения или удерживайте 👌 OK.':lang==='en'?'Preview '+letter+'. Change fingers freely; remove your hand for 0.8s to confirm, or hold 👌 OK.':'Алдын ала '+letter+' белгіленді. Саусақ санын өзгерте беріңіз; қолды 0,8 секунд алып кетсеңіз таңдалады немесе 👌 OK ұстап бекітіңіз.')
+   :(lang==='ru'?'Покажите 1–4 пальца: 1=A, 2=B, 3=C, 4=D.':lang==='en'?'Show 1–4 fingers: 1=A, 2=B, 3=C, 4=D.':'1–4 саусақ көрсетіңіз: 1=A, 2=B, 3=C, 4=D.');
  return <Panel title="Gesture Game" desc={T(lang,'gestureDesc')}>
   <p className="learning-notice"><ShieldCheck size={17}/>{T(lang,'privateInfo')}</p>
   {!enabled&&<CameraPermissionGate lang={lang} busy={busy} error={error} onRequest={start}/>}
-  <div className="gesture-layout"><div className="gesture-camera"><video ref={video} muted playsInline autoPlay style={{visibility:enabled?'visible':'hidden',position:enabled?'static':'absolute'}}/>{!enabled&&<Hand size={45}/>}</div><div className="gesture-task"><b>{T(lang,'points')}: {xp}</b><h3>{q.q}</h3><div className="gesture-options">{q.options.map((o,i)=><button key={i} className={(picked===i?'hovered ':'')+(choice.current===i?'chosen':'')} disabled={choice.current>=0} onClick={()=>answer(i)}>{String.fromCharCode(65+i)} · {o}</button>)}</div>{notice&&<><p>{notice}</p><Button onClick={next}>{T(lang,'next')}<ArrowRight size={16}/></Button></>}</div></div>
+  <div className="gesture-layout">
+   <div className="gesture-camera"><video ref={video} muted playsInline autoPlay style={{visibility:enabled?'visible':'hidden',position:enabled?'static':'absolute'}}/>{!enabled&&<Hand size={45}/>}</div>
+   <div className="gesture-task">
+    <b>{T(lang,'points')}: {xp}</b>
+    <h3>{q.q}</h3>
+    <div className="gesture-options">{q.options.map((option,i)=>
+     <button type="button" key={i} className={(picked===i&&!chosen?'hovered ':'')+(choice.current===i?'chosen':'')}
+      disabled={chosen} onClick={()=>answer(i)} aria-pressed={picked===i}>
+      {String.fromCharCode(65+i)} · {option}
+     </button>
+    )}</div>
+    <p className={'gesture-choice-status '+(chosen?'confirmed':picked>=0?'preview':'')} aria-live="polite">{guidance}</p>
+    {notice&&<><p>{notice}</p><Button onClick={()=>next(false)}>{T(lang,'next')}<ArrowRight size={16}/></Button></>}
+   </div>
+  </div>
   {enabled&&<div className="learning-actions"><button className="learning-secondary" onClick={stop}><CameraOff size={17}/>{T(lang,'stop')}</button></div>}
-  <p className="learning-notice">{lang==='ru'?'Покажите 1–4 пальца (без большого): 1=A, 2=B, 3=C, 4=D. Удерживайте ~0.5 секунды.':lang==='en'?'Hold 1–4 fingers up (exclude thumb): 1=A, 2=B, 3=C, 4=D. Keep steady briefly.':'1–4 саусақ көрсетіңіз (бас бармақ есептелмейді): 1=A, 2=B, 3=C, 4=D. Таңдау үшін бір қалыпта қысқа уақыт ұстаңыз.'} {enabled&&<strong>{fingerNumber} ☝️</strong>}</p>
+  <p className="learning-notice">
+   {lang==='ru'?'Думайте сколько нужно: пока пальцы видны, выбор можно менять. После исчезновения руки ответ подтвердится через 0,8 сек. Жест 👌 OK (большой и указательный сомкнуты, остальные три открыты) подтверждает ответ и переводит к следующему вопросу.':lang==='en'?'Take your time: keep changing fingers while your hand is visible. Removing it for 0.8s confirms. Hold 👌 OK (thumb and index touching, other three open) to confirm and move to the next question.':'Ойлануға шектеу жоқ: қол көрініп тұрғанда таңдауды өзгерте аласыз. Қол 0,8 секунд көрінбесе, жауап бекітіледі. 👌 OK (бас бармақ пен сұқ саусақ түйісіп, қалған үшеуі ашық) жестін ұстасаңыз, жауап бекітіліп, келесі сұраққа өтеді.'}
+   {enabled&&<strong> {okVisible?'👌 OK':fingerNumber+' ☝️'}</strong>}
+  </p>
+  <Msg error={error}/>
  </Panel>;
 }
 function Tutor({lang}){

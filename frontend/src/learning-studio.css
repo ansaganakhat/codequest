@@ -192,3 +192,8 @@
 .daily-options button.correct{background:#daf6e8;border-color:#49b889;color:#19764d}
 .daily-options button.wrong{background:#ffe5e5;border-color:#e78d8d;color:#a13e3e}
 @media(max-width:760px){.profile-layout{grid-template-columns:1fr}.daily-options{grid-template-columns:1fr}.face-winner-inner img{width:min(85vw,380px)}}
+
+/* Gesture Game: visually distinguish an editable hover from a committed choice. */
+.gesture-choice-status{margin:14px 0 5px;padding:12px 14px;border:1px solid #e2e1f1;border-radius:12px;background:#fff;color:#535777;font-size:13px;line-height:1.55}
+.gesture-choice-status.preview{background:#fff8e9;border-color:#f0d3a2;color:#81581d}
+.gesture-choice-status.confirmed{background:#eeeaff;border-color:#c0b0fb;color:#4f39a1;font-weight:700}
