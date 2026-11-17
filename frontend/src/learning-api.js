@@ -117,8 +117,11 @@ export const learningApi={
     if(!snap.exists())throw new Error('class_not_found');
     const data=snap.data();
     const ref=memberDoc(classId,p.id);
-    const existing=await getDoc(ref);
-    if(existing.exists())throw new Error('class_request_already_exists');
+    // A direct getDoc(ref) is denied for a not-yet-created membership because
+    // Firestore rules inspect resource.data. Querying the student's own
+    // memberships works for both new and returning students.
+    const memberships=await getDocs(query(membershipsCol(),where('student_uid','==',p.id)));
+    if(memberships.docs.some(d=>d.id===ref.id))throw new Error('class_request_already_exists');
     const member={
       class_id:classId,owner_uid:data.owner_uid,student_uid:p.id,
       student_name:String(p.full_name||p.first_name||'Оқушы').slice(0,130),
