@@ -3,6 +3,14 @@ import assert from 'node:assert/strict';
 import {normalizeQuizRoomId} from '../src/quiz-room.js';
 
 const roomId='icmihNLs6VQVmZBPI20i';
+test('accepts seven-digit numeric class quiz codes and links',()=>{
+ const c='1234567';
+ assert.equal(normalizeQuizRoomId(c),c);
+ assert.equal(normalizeQuizRoomId('https://codequest-ai-ansagan.netlify.app/?join='+c),c);
+ assert.equal(normalizeQuizRoomId('?join='+c),c);
+ assert.throws(()=>normalizeQuizRoomId('123456'),{message:'quiz_room_invalid'});
+ assert.throws(()=>normalizeQuizRoomId('12345678'),{message:'quiz_room_invalid'});
+});
 test('accepts a raw CodeQuest room code',()=>{
   assert.equal(normalizeQuizRoomId(roomId),roomId);
 });

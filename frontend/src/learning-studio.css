@@ -145,3 +145,50 @@
 .student-invite-tile span{color:#858a9b;font-size:12px}
 .student-invite-tile .learning-button{color:white;text-decoration:none}
 @media(max-width:650px){.teacher-class-grid{grid-template-columns:1fr}.student-invite-banner{flex-wrap:wrap}.student-invite-banner>button{margin-left:auto}}
+
+/* Quiz export / numeric room code */
+.quiz-numeric-code{font-size:25px!important;font-weight:900;letter-spacing:4px;color:#4f35c8;background:#ede7ff!important}
+.face-winner-overlay{position:fixed;inset:0;z-index:5000;background:radial-gradient(ellipse at center,#35247a,#14132d 78%);display:grid;place-items:center;overflow:auto;padding:28px;color:#fff}
+.face-winner-inner{display:grid;justify-items:center;gap:16px;text-align:center}
+.face-winner-inner>svg{color:#ffcc5c}
+.face-winner-inner h2{font-size:clamp(26px,4vw,58px);font-weight:900;color:#fff}
+.face-winner-inner img{width:min(70vw,420px);aspect-ratio:1;object-fit:cover;border-radius:26px;border:9px solid #ffce61;box-shadow:0 0 70px #ffcf6780}
+.face-winner-inner p{font-size:clamp(18px,2vw,26px);color:#eee3ff;font-weight:700}
+.face-winner-close{position:absolute;top:23px;right:27px;display:grid;place-items:center;width:50px;height:50px;background:#ffffff24;border:1px solid #ffffff66;border-radius:50%;color:white}
+.gesture-options button.hovered{border-color:#7c54e9;background:#ebe5ff}
+.ai-tutor-chat{background:#f8f7ff;border:1px solid #ece6ff;border-radius:18px;padding:20px;display:grid;gap:14px}
+.ai-tutor-heading{display:flex;gap:12px;align-items:center;flex-wrap:wrap;color:#6245c1}
+.ai-tutor-heading>small{margin-left:auto;color:#897bac}
+.ai-tutor-turn{display:grid;gap:10px}
+.ai-tutor-user,.ai-tutor-answer{line-height:1.65;padding:13px 16px;border-radius:13px;font-size:13px;white-space:pre-wrap}
+.ai-tutor-user{justify-self:end;background:#6c51db;color:white;max-width:86%}
+.ai-tutor-answer{justify-self:start;background:white;color:#2c3454;border:1px solid #e9e7f4}
+.ai-tutor-form{display:flex;align-items:end;gap:12px;flex-wrap:wrap}
+.ai-tutor-form textarea{flex:1;min-width:200px;border:1px solid #ddd8ee;border-radius:12px;background:#fff;padding:14px;font-family:inherit;font-size:13px}
+.profile-layout{display:grid;grid-template-columns:minmax(280px,1.25fr) minmax(280px,1fr);gap:18px}
+.profile-hero{display:flex;gap:16px;align-items:center}
+.profile-hero h3{font-size:20px}.profile-hero small{font-size:12px;color:#7e89a3;display:block;margin-top:7px}
+.profile-picture{width:104px;height:104px;border-radius:23px;object-fit:cover;border:3px solid #e7ddff}
+.profile-picture.placeholder{display:grid;place-items:center;color:#7460bd;background:#eee9ff}
+.avatar-input{position:relative;overflow:hidden;cursor:pointer}
+.avatar-input input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.profile-fields{display:grid;grid-template-columns:1fr 1fr;gap:13px;margin-top:22px}
+.profile-fields>div{display:grid;gap:6px;background:#faf9ff;border:1px solid #eeeaf7;border-radius:13px;padding:12px;min-width:0}
+.profile-fields small{color:#8c93a6;font-size:11px}
+.profile-fields strong{font-size:13px;word-break:break-word}
+.profile-password{display:grid;align-content:start;gap:14px}
+.profile-password>label{display:grid;gap:7px;font-size:12px;font-weight:650;color:#63708c}
+.profile-password input{background:#fff;border:1px solid #dfe3ec;border-radius:10px;padding:12px 13px;min-height:43px}
+.profile-password h2{display:flex;align-items:center;gap:12px}
+.user-avatar-button{border:none;padding:0;overflow:hidden;display:grid;place-items:center;cursor:pointer}
+.user-avatar-button img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.daily-challenge h2{display:flex;gap:13px;align-items:center}
+.daily-challenge>h3{font-size:22px;line-height:1.5;margin:20px 0}
+.daily-score{display:flex;gap:14px;flex-wrap:wrap}
+.daily-score span{display:inline-flex;gap:9px;align-items:center;background:#f2eaff;border-radius:10px;color:#6345bd;padding:10px;font-weight:700;font-size:12px}
+.daily-options{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.daily-options button{background:#faf9ff;border:1px solid #e8e5f6;border-radius:13px;padding:16px;text-align:left;color:#323657;font-weight:700}
+.daily-options button:not(:disabled):hover{background:#ede7ff;border-color:#7257ea}
+.daily-options button.correct{background:#daf6e8;border-color:#49b889;color:#19764d}
+.daily-options button.wrong{background:#ffe5e5;border-color:#e78d8d;color:#a13e3e}
+@media(max-width:760px){.profile-layout{grid-template-columns:1fr}.daily-options{grid-template-columns:1fr}.face-winner-inner img{width:min(85vw,380px)}}

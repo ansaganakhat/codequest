@@ -7,6 +7,7 @@ import { initializeApp } from 'firebase/app';
 import {
   getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
   signOut, sendEmailVerification, deleteUser,
+  reauthenticateWithCredential, EmailAuthProvider, updatePassword,
 } from 'firebase/auth';
 import {
   getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc,
@@ -148,6 +149,35 @@ export const firebaseApi={
     return p;
   },
   async logout(){await signOut(auth);return {ok:true}},
+  async updateOwnAvatar(dataUrl){
+    const user=requireUser();
+    const profile=await ownProfile();
+    if(!profile)throw new Error('profile_missing');
+    if(profile.role==='student')throw new Error('student_cloud_photo_disabled');
+    if(dataUrl!==null){
+      if(typeof dataUrl!=='string'||dataUrl.length>24000||
+        !/^data:image\/(webp|jpeg);base64,[A-Za-z0-9+/=]+$/.test(dataUrl)){
+        throw new Error('avatar_invalid');
+      }
+    }
+    await updateDoc(userRef(user.uid),{avatar_data_url:dataUrl});
+    return await ownProfile();
+  },
+  async changeOwnPassword(currentPassword,newPassword){
+    const user=requireUser();
+    if(!user.email)throw new Error('password_email_required');
+    if(String(newPassword||'').length<10)throw new Error('password_too_short');
+    const credential=EmailAuthProvider.credential(user.email,String(currentPassword||''));
+    await reauthenticateWithCredential(user,credential);
+    await updatePassword(user,newPassword);
+    return {ok:true};
+  },
+  async getIdTokenForTutor(){
+    const user=requireUser();
+    await user.reload();
+    if(!user.emailVerified)throw new Error('verify_email_first');
+    return user.getIdToken(true);
+  },
   async resendVerification(){
     const u=requireUser();
     await u.reload();

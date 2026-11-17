@@ -65,7 +65,20 @@ service cloud.firestore {
           (request.resource.data.get('guardian_permission_acknowledged', false) == true
            && request.resource.data.school_id == null
            && request.resource.data.subject_ids.size() == 0));
-      allow update, delete: if admin();
+      allow update: if admin() || (
+        signedIn() && request.auth.uid == uid
+        && resource.data.role in ['teacher','parent','admin']
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['avatar_data_url'])
+        && (
+          request.resource.data.avatar_data_url == null
+          || (
+            request.resource.data.avatar_data_url is string
+            && request.resource.data.avatar_data_url.size() <= 24000
+            && request.resource.data.avatar_data_url.matches('^data:image/(webp|jpeg);base64,[A-Za-z0-9+/=]+$')
+          )
+        )
+      );
+      allow delete: if admin();
     }
     match /students/{childId} {
       allow get, list: if admin()
@@ -199,12 +212,16 @@ service cloud.firestore {
           && (
             (
               request.resource.data.keys().hasOnly([
-                'owner_uid','class_id','quiz_id','title','status','started_at'
+                'owner_uid','class_id','quiz_id','title','status','started_at','join_code'
               ])
               && request.resource.data.keys().hasAll([
                 'owner_uid','class_id','quiz_id','title','status','started_at'
               ])
               && request.resource.data.quiz_id is string
+              && (
+                !request.resource.data.keys().hasAny(['join_code'])
+                || request.resource.data.join_code == getAfter(quizPath(request.resource.data.quiz_id)).data.join_code
+              )
               && request.resource.data.title is string
               && request.resource.data.status == 'open'
               && request.resource.data.started_at is int
@@ -221,6 +238,23 @@ service cloud.firestore {
           );
         allow delete: if admin() || teacherOwnsClass(classId);
       }
+    }
+
+    match /quiz_join_codes/{code} {
+      // Numeric codes are resolvable only by signed-in users, no listing allowed.
+      // The quiz still enforces its own class membership rules.
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if activeTeacher()
+        && code.matches('^[0-9]{7}$')
+        && request.resource.data.keys().hasOnly(['quiz_id','owner_uid','created_at'])
+        && request.resource.data.keys().hasAll(['quiz_id','owner_uid','created_at'])
+        && request.resource.data.owner_uid == request.auth.uid
+        && request.resource.data.quiz_id is string
+        && request.resource.data.created_at is int
+        && getAfter(quizPath(request.resource.data.quiz_id)).data.owner_uid == request.auth.uid
+        && getAfter(quizPath(request.resource.data.quiz_id)).data.join_code == code;
+      allow update, delete: if false;
     }
 
     // Stage 2: quiz is not a formal grade or identity verification service.
@@ -246,13 +280,17 @@ service cloud.firestore {
         (activeTeacher() && resource.data.owner_uid == request.auth.uid);
       allow create: if activeTeacher()
         && request.resource.data.keys().hasOnly([
-          'owner_uid','school_id','title','questions','status','created_at','class_id'
+          'owner_uid','school_id','title','questions','status','created_at','class_id','join_code'
         ])
         && request.resource.data.keys().hasAll([
           'owner_uid','school_id','title','questions','status','created_at'
         ])
         && request.resource.data.owner_uid == request.auth.uid
         && request.resource.data.school_id == myProfile().school_id
+        && (!request.resource.data.keys().hasAny(['join_code']) ||
+          (request.resource.data.join_code is string
+            && request.resource.data.join_code.matches('^[0-9]{7}$')
+            && getAfter(/databases/$(database)/documents/quiz_join_codes/$(request.resource.data.join_code)).data.quiz_id == quizId))
         && (
           (!request.resource.data.keys().hasAny(['class_id'])
             && request.resource.data.status == 'open')

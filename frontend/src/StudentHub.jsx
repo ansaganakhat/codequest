@@ -67,7 +67,7 @@ export function StudentHub({user,lang='kk',mode='classes'}){
     {members.map(m=><div className="learning-tile" key={m.id}><GraduationCap size={23}/><strong>{m.class_name}</strong><small>{m.status==='approved'?T(lang,'approved'):m.status==='rejected'?T(lang,'rejected'):T(lang,'pending')}</small><span className="student-class-code">{m.class_id}</span></div>)}
    </div>{!members.length&&<p className="learning-notice">{T(lang,'none')}</p>}</>}
    <h3 className="section-title">{T(lang,'myQuizzes')}</h3>
-   {invitations.length?<div className="student-invites-list">{invitations.map(q=><div className="student-invite-tile" key={q.quiz_id}><div><small>{q.class_name}</small><b>{q.title}</b><span>{T(lang,'active')}</span></div><a className="learning-button" href={'/?join='+encodeURIComponent(q.quiz_id)}><Trophy size={17}/>{T(lang,'enter')}</a></div>)}</div>:
+   {invitations.length?<div className="student-invites-list">{invitations.map(q=><div className="student-invite-tile" key={q.quiz_id}><div><small>{q.class_name}</small><b>{q.title}</b><span>{T(lang,'active')}</span></div><a className="learning-button" href={'/?join='+encodeURIComponent(q.join_code||q.quiz_id)}><Trophy size={17}/>{T(lang,'enter')}</a></div>)}</div>:
     <p className="learning-notice"><Clock size={17}/>{T(lang,'waiting')}</p>}
  </section>;
 }

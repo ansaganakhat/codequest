@@ -6,7 +6,7 @@
 import { getAuth, signInAnonymously } from 'firebase/auth';
 import {
   addDoc, collection, doc, getDoc, getDocs, onSnapshot, query, setDoc,
-  where, writeBatch, updateDoc
+  where, writeBatch, updateDoc, runTransaction
 } from 'firebase/firestore';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
@@ -68,6 +68,18 @@ async function teacherClass(id){
  const snap=await getDoc(classDoc(classId));
  if(!snap.exists()||snap.data().owner_uid!==p.id)throw new Error('class_not_owned');
  return {p,id:classId,...snap.data()};
+}
+function makeJoinCode(){
+  const random=new Uint32Array(1);
+  crypto.getRandomValues(random);
+  return String(1000000+(random[0]%9000000));
+}
+async function resolveQuizId(input){
+  const parsed=normalizeQuizRoomId(input);
+  if(!/^\d{7}$/.test(parsed))return parsed;
+  const lookup=await getDoc(doc(store,'quiz_join_codes',parsed));
+  if(!lookup.exists())throw new Error('room_not_found');
+  return lookup.data().quiz_id;
 }
 function tidy(s,max=80){return String(s||'').replace(/\s+/g,' ').trim().slice(0,max)}
 function cleanItems(items){
@@ -151,21 +163,34 @@ export const learningApi={
     const items=cleanItems(input.items);
     const title=tidy(input.title,100);
     if(title.length<3)throw new Error('quiz_title_required');
-    const ref=doc(collection(store,'quizzes'));  // unpredictable share link, not a guessable 4-digit code
+    const ref=doc(collection(store,'quizzes'));
     const publicQuestions=items.map(({prompt,options})=>({prompt,options}));
     const classroom=input.class_id?await teacherClass(input.class_id):null;
+    const answerKey={owner_uid:p.id,answers:items.map(x=>x.correct),created_at:Date.now()};
     const quiz={
       owner_uid:p.id,school_id:Number(p.school_id||0),title,
       questions:publicQuestions,status:classroom?'draft':'open',created_at:Date.now(),
       ...(classroom?{class_id:classroom.id}:{})
     };
-    const batch=writeBatch(store);
-    batch.set(ref,quiz);
-    batch.set(doc(store,'quiz_answer_keys',ref.id),{
-      owner_uid:p.id,answers:items.map(x=>x.correct),created_at:Date.now()
-    });
-    await batch.commit();
-    return {id:ref.id,...quiz};
+    // A 7-digit code is mapped atomically to an unguessable Firestore document ID.
+    // Fail on collisions instead of overwriting someone else's quiz.
+    let code;
+    for(let attempt=0;attempt<12;attempt++){
+      const candidate=makeJoinCode();
+      const codeRef=doc(store,'quiz_join_codes',candidate);
+      try{
+        await runTransaction(store,async trx=>{
+          const existing=await trx.get(codeRef);
+          if(existing.exists())throw new Error('quiz_code_collision');
+          trx.set(ref,{...quiz,join_code:candidate});
+          trx.set(doc(store,'quiz_answer_keys',ref.id),answerKey);
+          trx.set(codeRef,{quiz_id:ref.id,owner_uid:p.id,created_at:quiz.created_at});
+        });
+        code=candidate;break;
+      }catch(e){if(e.message!=='quiz_code_collision')throw e;}
+    }
+    if(!code)throw new Error('quiz_code_unavailable');
+    return {id:ref.id,...quiz,join_code:code};
   },
   async quizzes(){
     const p=await teacher();
@@ -182,6 +207,7 @@ export const learningApi={
     b.update(room.ref,{status:'open',started_at:stamp});
     b.set(invitationDoc(klass.id),{
       owner_uid:p.id,class_id:klass.id,quiz_id:room.id,title:room.data().title,
+      ...(room.data().join_code?{join_code:room.data().join_code}:{}),
       status:'open',started_at:stamp
     });
     await b.commit();
@@ -204,7 +230,7 @@ export const learningApi={
   },
   async getQuiz(roomId){
     requireFirebase();
-    const ref=doc(store,'quizzes',normalizeQuizRoomId(roomId));
+    const ref=doc(store,'quizzes',await resolveQuizId(roomId));
     const snap=await getDoc(ref);
     if(!snap.exists())throw new Error('room_not_found');
     return {id:snap.id,...snap.data()};

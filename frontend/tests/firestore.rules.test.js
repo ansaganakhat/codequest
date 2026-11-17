@@ -113,6 +113,29 @@ test('Firestore rules: students join only after a teacher approves, class quizze
    await assertSucceeds(b.commit());
    await assertFails(setDoc(doc(student,'quizzes',quizId,'responses','student1_1'),{participant_uid:'student1',question_index:1,option_index:1,alias:'Student One',created_at:ts+4}));
   });
+  await t.test('Numeric join code is unique, mapped to teacher quiz, and cannot be hijacked',async()=>{
+    const quizNewId='NewCodeQuiz012345678';
+    const number='7654321';
+    const quiz={owner_uid:'teacher1',school_id:2,title:'Seven digits',questions:[{prompt:'Hello world?',options:['A','B','C','D']}],status:'open',created_at:ts,join_code:number};
+    const batch=writeBatch(teacher);
+    batch.set(doc(teacher,'quizzes',quizNewId),quiz);
+    batch.set(doc(teacher,'quiz_answer_keys',quizNewId),{owner_uid:'teacher1',answers:[1],created_at:ts});
+    batch.set(doc(teacher,'quiz_join_codes',number),{quiz_id:quizNewId,owner_uid:'teacher1',created_at:ts});
+    await assertSucceeds(batch.commit());
+    await assertSucceeds(getDoc(doc(student,'quiz_join_codes',number)));
+    await assertFails(getDocs(collection(student,'quiz_join_codes')));
+    await assertFails(updateDoc(doc(other,'quiz_join_codes',number),{quiz_id:'hijacked'}));
+    await assertFails(setDoc(doc(other,'quiz_join_codes','9999999'),{quiz_id:quizNewId,owner_uid:'teacher2',created_at:ts}));
+    await assertSucceeds(getDoc(doc(student,'quizzes',quizNewId)));
+   });
+  await t.test('Only account owner can set a compact avatar; students cannot upload cloud photos',async()=>{
+    const avatar='data:image/jpeg;base64,'+'a'.repeat(400);
+    await assertSucceeds(updateDoc(doc(teacher,'users','teacher1'),{avatar_data_url:avatar}));
+    await assertFails(updateDoc(doc(student,'users','student1'),{avatar_data_url:avatar}));
+    await assertFails(updateDoc(doc(teacher,'users','teacher1'),{status:'approved',school_id:3}));
+    await assertFails(updateDoc(doc(teacher,'users','teacher1'),{avatar_data_url:'data:image/svg+xml;base64,AAA'}));
+    await assertFails(updateDoc(doc(other,'users','teacher1'),{avatar_data_url:avatar}));
+  });
   await t.test('Anonymous legacy free QR quiz still requires authentication but not classroom membership',async()=>{
    const legacyId='LegacyQuizId01234567';
    await env.withSecurityRulesDisabled(async ctx=>{

@@ -1,5 +1,5 @@
 /**
- * Convert a CodeQuest Live Quiz QR link or a Firestore room ID to an ID.
+ * Convert a CodeQuest Live Quiz QR link, a 7-digit code, or a legacy Firestore ID.
  * This parser does not contact the network and does not modify authentication.
  */
 export function normalizeQuizRoomId(input){
@@ -18,6 +18,6 @@ export function normalizeQuizRoomId(input){
     const query=candidate.startsWith('/?')?candidate.slice(1):candidate.startsWith('join=')?'?'+candidate:candidate;
     candidate=new URLSearchParams(query).get('join')||'';
   }
-  if(!/^[A-Za-z0-9]{20}$/.test(candidate))throw new Error('quiz_room_invalid');
+  if(!(/^[0-9]{7}$/.test(candidate)||/^[A-Za-z0-9]{20}$/.test(candidate)))throw new Error('quiz_room_invalid');
   return candidate;
 }
