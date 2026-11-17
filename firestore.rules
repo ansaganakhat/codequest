@@ -21,8 +21,10 @@ service cloud.firestore {
         myProfile().role == 'teacher' &&
         request.auth.token.email_verified == true &&
         myProfile().status == 'approved' &&
-        myProfile().school_id == student.school_id &&
-        student.status == 'approved';
+        // Teachers can see students registered for their own school,
+        // including parent-submitted records awaiting administrator approval.
+        // Teacher approval and verified email remain mandatory.
+        myProfile().school_id == student.school_id;
     }
 
     match /schools/{id} {

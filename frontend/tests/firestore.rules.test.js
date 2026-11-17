@@ -112,6 +112,38 @@ test('Firestore rules: students join only after a teacher approves, class quizze
    await assertSucceeds(deleteDoc(doc(parent,'child_provisioning',linkedUid)));
    await assertFails(deleteDoc(doc(kid,'users',linkedUid)));
   });
+  await t.test('Approved school teacher sees pending and approved children only at their school',async()=>{
+   // No prod access; these are emulator-only fake students.
+   const child=(full_name,school_id,status)=>({
+    full_name,school_id,status,grade:6,class_letter:'A',
+    parent_id:'parent1',created_at:new Date().toISOString()
+   });
+   await env.withSecurityRulesDisabled(async ctx=>{
+    const db=ctx.firestore();
+    await Promise.all([
+     setDoc(doc(db,'students','teacher-school-pending'),child('Local Pending',2,'pending')),
+     setDoc(doc(db,'students','teacher-school-approved'),child('Local Approved',2,'approved')),
+     setDoc(doc(db,'students','other-school-pending'),child('Other School',3,'pending')),
+     setDoc(doc(db,'users','unapproved-teacher'),{
+       id:'unapproved-teacher',role:'teacher',school_id:2,status:'pending',full_name:'Teacher Not Approved'
+     })
+    ]);
+   });
+   const allSameSchool=await assertSucceeds(getDocs(query(collection(teacher,'students'),where('school_id','==',2))));
+   const rows=allSameSchool.docs.map(d=>({id:d.id,...d.data()}));
+   assert.ok(rows.some(c=>c.id==='teacher-school-pending'&&c.status==='pending'));
+   assert.ok(rows.some(c=>c.id==='teacher-school-approved'&&c.status==='approved'));
+   assert.ok(rows.every(c=>c.school_id===2));
+   await assertFails(getDocs(query(collection(teacher,'students'),where('school_id','==',3))));
+   await assertFails(getDoc(doc(teacher,'students','other-school-pending')));
+   await assertFails(getDocs(query(collection(other,'students'),where('school_id','==',2))));
+   await assertFails(getDocs(query(collection(parent,'students'),where('school_id','==',2))));
+   await assertFails(getDocs(query(collection(guest,'students'),where('school_id','==',2))));
+   const unverified=env.authenticatedContext('teacher1',{email:'teacher1@example.com',email_verified:false}).firestore();
+   await assertFails(getDocs(query(collection(unverified,'students'),where('school_id','==',2))));
+   const unapproved=env.authenticatedContext('unapproved-teacher',{email:'unapproved@example.com',email_verified:true}).firestore();
+   await assertFails(getDocs(query(collection(unapproved,'students'),where('school_id','==',2))));
+  });
   const classroom={owner_uid:'teacher1',school_id:2,name:'6-А',grade:6,letter:'А',created_at:ts};
   await t.test('Only the approved teacher can create their own class',async()=>{
    await assertSucceeds(setDoc(doc(teacher,'classrooms',classId),classroom));

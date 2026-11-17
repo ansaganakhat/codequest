@@ -210,8 +210,13 @@ export const firebaseApi={
     }
     if(p.role==='teacher'){
       if(p.status!=='approved')return {role:'teacher',approved:false,total_students:0,school_name:p.school_name};
-      const children=await fetchChildrenBy('school_id',p.school_id,'approved');
-      return {role:'teacher',approved:true,total_students:children.filter(c=>c.status==='approved').length,school_name:p.school_name};
+      // Single-field school query avoids an unpublished composite index.
+      // Pending children should be visible with their explicit status.
+      const children=await fetchChildrenBy('school_id',Number(p.school_id));
+      return {role:'teacher',approved:true,
+        total_students:children.filter(c=>c.status!=='rejected').length,
+        pending_students:children.filter(c=>c.status==='pending').length,
+        school_name:p.school_name};
     }
     await mustAdmin();
     const [people,children]=await Promise.all([getDocs(collection(store,'users')),getDocs(studentCol())]);
@@ -333,8 +338,11 @@ export const firebaseApi={
       values=(await getDocs(studentCol())).docs.map(normalizeStudent);
     }else{
       if(p.status!=='approved')throw new Error('teacher_awaits_approval');
-      values=await fetchChildrenBy('school_id',p.school_id,'approved');
-      values=values.filter(s=>s.status==='approved');
+      if(!Number.isInteger(Number(p.school_id))||Number(p.school_id)<=0)throw new Error('teacher_school_not_set');
+      // Do not request status=approved: parents' newly registered children are
+      // pending, and the old two-field query can require an uncreated index.
+      values=await fetchChildrenBy('school_id',Number(p.school_id));
+      values=values.filter(s=>s.status!=='rejected');
     }
     const searched=String(q||'').trim().toLocaleLowerCase();
     return values.filter(s=>!searched||s.full_name.toLocaleLowerCase().includes(searched)).map(s=>({...s,school_name:schoolById(s.school_id)?.name_kk||''}));
