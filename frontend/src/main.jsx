@@ -133,6 +133,7 @@ function App(){
  const tr=k=>L[lang]?.[k]||L.kk[k]||k;
  const [user,setUser]=useState(null),[loading,setLoading]=useState(true),[apiAvailable,setApiAvailable]=useState(true),[schools,setSchools]=useState(previewSchools),[subjects,setSubjects]=useState(previewSubjects),[view,setView]=useState('home'),[dashboard,setDashboard]=useState(null);
  const [children,setChildren]=useState([]),[students,setStudents]=useState([]),[users,setUsers]=useState([]);
+ useEffect(()=>{if(user?.role==='student'&&new URLSearchParams(window.location.search).get('class'))setView('myClasses')},[user?.id,user?.role]);
  const [studentsError,setStudentsError]=useState(null),[studentsLoading,setStudentsLoading]=useState(false),[directoryReload,setDirectoryReload]=useState(0);
  const [query,setQuery]=useState(''),[editor,setEditor]=useState(null),[message,setMessage]=useState(''),[menu,setMenu]=useState(false),[avatarTick,setAvatarTick]=useState(0);
  useEffect(()=>{const update=()=>setAvatarTick(v=>v+1);window.addEventListener('cq-avatar-update',update);return()=>window.removeEventListener('cq-avatar-update',update)},[]);
