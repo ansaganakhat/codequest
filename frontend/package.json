@@ -30,5 +30,8 @@
     "@firebase/rules-unit-testing": "^6.0.0",
     "firebase-tools": "^15.36.0",
     "wrangler": "^4.0.0"
+  },
+  "overrides": {
+    "rollup": "4.68.3"
   }
 }
