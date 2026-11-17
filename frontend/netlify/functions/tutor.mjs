@@ -1,4 +1,5 @@
 import {createRemoteJWKSet,jwtVerify} from 'jose';
+import {tutorProviderFromEnv,requestTutorAnswer,TutorProviderError} from '../lib/tutor-provider.mjs';
 
 const JWKS=createRemoteJWKSet(new URL('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com'));
 const PROJECT_ID='codequest-1bfc6';
@@ -32,11 +33,6 @@ export default async function handler(request){
  if(request.method!=='POST')return json({error:'method_not_allowed'},405);
  const origin=request.headers.get('origin');
  if(origin&&!ALLOWED_ORIGINS.has(origin))return json({error:'origin_forbidden'},403);
- const endpoint=process.env.FREELLM_BASE_URL;
- const key=process.env.FREELLM_API_KEY;
- const model=process.env.FREELLM_MODEL;
- if(!endpoint||!key||!model)return json({error:'freellm_not_configured'},503);
- if(!/^https:\/\//i.test(endpoint))return json({error:'freellm_https_required'},503);
  const token=(request.headers.get('authorization')||'').match(/^Bearer (.+)$/i)?.[1];
  if(!token)return json({error:'login_required'},401);
  let identity;
@@ -54,20 +50,18 @@ export default async function handler(request){
  }catch{return json({error:'invalid_question'},400)}
  if(forbiddenTopics.test(question))return json({answer:'Мен тек қауіпсіз оқу тапсырмалары мен CodeQuest AI платформасына қатысты сұрақтарға көмектесемін.'});
  if(!allowedTopics.some(r=>r.test(question)))return json({answer:'Мен тек сабақ, білім алу және CodeQuest AI платформасы туралы сұрақтарға жауап беремін. Осы тақырыптардың біріне қатысты сұрақ қойыңыз.'});
- let url;
+ // School users: avoid sending common personal identifiers to outside AI providers.
+ // A regex is only a partial safeguard; students must be taught not to share PII.
+ if(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i.test(question)
+   || /(?:\+?7|8)[\s()-]*\d[\d\s()-]{8,13}/.test(question)
+   || /\b\d{12}\b/.test(question))
+   return json({error:'personal_data_not_allowed'},400);
  try{
-  url=new URL(endpoint);
-  if(!url.hostname||url.username||url.password)throw Error();
-  if(!url.pathname.endsWith('/v1'))url.pathname=url.pathname.replace(/\/$/,'')+'/v1';
-  url.pathname=url.pathname.replace(/\/$/,'')+'/chat/completions';
- }catch{return json({error:'invalid_gateway_url'},503)}
- try{
-  const signal=AbortSignal.timeout(22000);
-  const remote=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+key},body:JSON.stringify({model,messages:[{role:'system',content:system},{role:'user',content:question}],temperature:0.35,max_tokens:650,stream:false}),signal});
-  if(!remote.ok)return json({error:remote.status===429?'freellm_rate_limit':'freellm_gateway_error'},502);
-  const payload=await remote.json();
-  const response=payload?.choices?.[0]?.message?.content;
-  if(typeof response!=='string'||!response.trim())return json({error:'empty_ai_response'},502);
-  return json({answer:response.slice(0,3600)});
- }catch{return json({error:'freellm_unavailable'},502)}
+  const provider=tutorProviderFromEnv(process.env);
+  const result=await requestTutorAnswer(provider,question,system);
+  return json({answer:result.answer,provider:result.provider});
+ }catch(error){
+  if(error instanceof TutorProviderError)return json({error:error.message},error.status);
+  return json({error:'ai_provider_error'},502);
+ }
 }

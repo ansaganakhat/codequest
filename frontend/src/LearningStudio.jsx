@@ -382,11 +382,18 @@ function Tutor({lang}){
    });
    const data=await response.json().catch(()=>({}));
    if(!response.ok){
-    const error=data.error==='freellm_not_configured'
-     ?(lang==='ru'?'FreeLLM сервер еще не подключен. Используйте учебные подсказки ниже.':lang==='en'?'FreeLLM server is not connected yet. Use study hints below.':'FreeLLM сервері әлі бапталмаған. Төмендегі дайын оқу кеңестерін қолдана беріңіз.')
-     :data.error==='rate_limit'?'Сұрақ шегіне жеттіңіз. Біраздан кейін қайта көріңіз.'
-     :(data.error||'ЖИ серверінде қате шықты.');
-    throw Error(error);
+    const messages={
+      ai_not_configured:['ЖИ әлі қосылмаған: Netlify серверіне GEMINI_API_KEY енгізіңіз. Дайын оқу кеңестері жұмыс істей береді.','ИИ еще не подключен: добавьте GEMINI_API_KEY в Netlify. Учебные подсказки доступны.','AI is not configured: add GEMINI_API_KEY to Netlify. Built-in study hints still work.'],
+      ai_api_key_invalid:['Gemini API кілтін тексеріңіз.','Проверьте ключ Gemini API.','Check your Gemini API key.'],
+      ai_model_not_found:['Gemini моделі табылмады. Netlify-дегі GEMINI_MODEL мәнін тексеріңіз.','Модель Gemini не найдена. Проверьте GEMINI_MODEL.','Gemini model not found. Check GEMINI_MODEL.'],
+      ai_quota_exceeded:['ЖИ лимиті таусылды. Google AI Studio квотасын тексеріңіз.','Превышена квота ИИ. Проверьте лимиты Google AI Studio.','AI quota exceeded. Check Google AI Studio limits.'],
+      ai_provider_busy:['ЖИ сервисі бос емес. Біраздан кейін қайта көріңіз.','ИИ сервис временно занят. Повторите позже.','AI provider is busy. Try again shortly.'],
+      ai_provider_unreachable:['ЖИ серверімен байланыс жоқ. Қайта көріңіз.','Нет связи с сервером ИИ. Повторите попытку.','AI provider cannot be reached. Try again.'],
+      personal_data_not_allowed:['Жеке деректерді (email, телефон, ЖСН) сұрақта жазбаңыз.','Не отправляйте личные данные (email, телефон, ИИН).','Do not include personal information (email, phone, ID number).'],
+      rate_limit:['Сұрақ шегіне жеттіңіз. Біраздан кейін қайталаңыз.','Слишком много запросов. Повторите позже.','Too many requests. Try later.']
+    };
+    const index=lang==='ru'?1:lang==='en'?2:0;
+    throw Error(messages[data.error]?.[index]||data.error||'ЖИ серверінде қате шықты.');
    }
    setMessages(old=>[...old.slice(-7),{question:ask,answer:data.answer||''}]);
    setQuestion('');
