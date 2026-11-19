@@ -165,6 +165,23 @@ test('Firestore rules: students join only after a teacher approves, class quizze
    await assertSucceeds(getDocs(query(collection(teacher,'class_memberships'),where('owner_uid','==','teacher1'))));
    await assertFails(getDocs(collection(student,'class_memberships')));
   });
+  await t.test('XP events belong to the student and teacher sees only their own class ranking',async()=>{
+   const event={student_uid:'student1',event_id:'daily_2026-11-19',source:'daily',points:20,date:'2026-11-19',created_at:ts};
+   await assertSucceeds(setDoc(doc(student,'xp_events','student1','items',event.event_id),event));
+   await assertSucceeds(getDocs(collection(student,'xp_events','student1','items')));
+   await assertFails(getDocs(collection(student2,'xp_events','student1','items')));
+   await assertFails(setDoc(doc(student2,'xp_events','student1','items','daily_2026-11-20'),{...event,event_id:'daily_2026-11-20',date:'2026-11-20'}));
+   await assertFails(setDoc(doc(student,'xp_events','student1','items','daily_2026-11-20'),{...event,event_id:'daily_2026-11-20',date:'2026-11-20',points:999}));
+   await assertFails(updateDoc(doc(student,'xp_events','student1','items',event.event_id),{points:999}));
+   await assertFails(setDoc(doc(student,'xp_events','student1','items',event.event_id),event));
+   const classEvent={...event,class_id:classId,student_name:'Student One'};
+   const eventDoc=doc(student,'classrooms',classId,'xp_events','student1_'+event.event_id);
+   await assertSucceeds(setDoc(eventDoc,classEvent));
+   await assertSucceeds(getDocs(collection(teacher,'classrooms',classId,'xp_events')));
+   await assertFails(getDocs(collection(other,'classrooms',classId,'xp_events')));
+   await assertFails(getDocs(collection(student,'classrooms',classId,'xp_events')));
+   await assertFails(setDoc(doc(student2,'classrooms',classId,'xp_events','student2_daily_2026-11-19'),{...classEvent,student_uid:'student2'}));
+  });
   const publicQ={owner_uid:'teacher1',school_id:2,title:'School quiz',questions:[{prompt:'Test question?',options:['one','two','three','four']}],created_at:ts,class_id:classId,status:'draft'};
   const key={owner_uid:'teacher1',answers:[1],created_at:ts};
   await t.test('Private answer key and draft cannot be read by students',async()=>{
