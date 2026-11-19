@@ -4,7 +4,7 @@
  */
 import {initializeApp,getApp,getApps} from 'firebase/app';
 import {getAuth} from 'firebase/auth';
-import {getFirestore,collection,doc,getDocs,onSnapshot,query,where,writeBatch} from 'firebase/firestore';
+import {getFirestore,collection,doc,getDoc,getDocs,onSnapshot,query,where,writeBatch} from 'firebase/firestore';
 
 const config={apiKey:import.meta.env.VITE_FIREBASE_API_KEY,authDomain:import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,projectId:import.meta.env.VITE_FIREBASE_PROJECT_ID,appId:import.meta.env.VITE_FIREBASE_APP_ID};
 const available=Object.values(config).every(Boolean);
@@ -41,6 +41,8 @@ export async function awardXp({source,date=almatyDay(),questionIndex=null}){
  const memberships=await getDocs(query(collection(db,'class_memberships'),where('student_uid','==',uid)));
  const approved=memberships.docs.map(d=>d.data()).filter(m=>m.status==='approved').slice(0,15);
  const base={student_uid:uid,event_id:id,source,points,date,created_at:Date.now()};
+ const existing=await getDoc(doc(ledger(uid),id));
+ if(existing.exists())return {awarded:false,points:0};
  const batch=writeBatch(db);
  batch.set(doc(ledger(uid),id),base);
  for(const m of approved){
