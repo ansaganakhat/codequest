@@ -1,5 +1,6 @@
 import React,{useMemo,useState} from 'react';
 import {CalendarCheck,Flame,Trophy,RotateCcw} from 'lucide-react';
+import {awardXp,almatyDay} from './xp.js';
 const tasks=[
  {q:'Python-дағы print(7 // 2) нәтижесі қандай?',options:['3','3.5','4','14'],answer:0,why:'// — бүтін бөлу, сондықтан 7 // 2 = 3.'},
  {q:'HTML құжатында тақырып жазу үшін қандай тег қолданылады?',options:['<div>','<h1>','<p>','<img>'],answer:1,why:'<h1> — ең жоғары деңгейдегі тақырып тегі.'},
@@ -14,7 +15,7 @@ const tasks=[
  {q:'Компьютердің жедел жадысы қайсы?',options:['RAM','SSD','GPU','USB'],answer:0,why:'RAM — жедел жады.'},
  {q:'HTTP сұрауларында HTTPS айырмашылығы?',options:['Жылдамдық қана','Шифрлау','Тек сурет','Парольсіз'],answer:1,why:'HTTPS TLS арқылы деректерді шифрлайды.'}
 ];
-const day=()=>new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Almaty'});
+const day=almatyDay;
 export function DailyChallenge({user,lang='kk'}){
  const date=day(),storage='cq_daily_challenge_'+user.id;
  const pick=useMemo(()=>{
@@ -24,13 +25,21 @@ export function DailyChallenge({user,lang='kk'}){
  },[date]);
  const get=()=>{try{return JSON.parse(localStorage.getItem(storage)||'{}')}catch{return {}}};
  const [done,setDone]=useState(get),[choice,setChoice]=useState(-1);
+ const [xpError,setXpError]=useState(''),[saving,setSaving]=useState(false),[xpSaved,setXpSaved]=useState(false);
+ const saveXp=async()=>{
+  setSaving(true);setXpError('');
+  try{const result=await awardXp({source:'daily',date});setXpSaved(true);}
+  catch(e){setXpError(e?.message||String(e))}
+  finally{setSaving(false)}
+ };
  const todayResult=done[date]??null;
- const submit=i=>{
+ const submit=async i=>{
   if(todayResult!==null)return;
   const result={answer:i,correct:i===pick.answer,points:i===pick.answer?20:0};
   const updated={...done,[date]:result};
   setChoice(i);setDone(updated);
   try{localStorage.setItem(storage,JSON.stringify(updated))}catch{}
+  if(result.correct)await saveXp();
  };
  const streak=Object.entries(done).filter(([_,v])=>v.correct).length;
  return <div className="learning-panel daily-challenge">
@@ -40,6 +49,8 @@ export function DailyChallenge({user,lang='kk'}){
   <h3>{pick.q}</h3>
   <div className="daily-options">{pick.options.map((o,i)=><button key={i} disabled={todayResult!==null} className={todayResult!==null&&pick.answer===i?'correct':todayResult?.answer===i?'wrong':''} onClick={()=>submit(i)}>{String.fromCharCode(65+i)}. {o}</button>)}</div>
   {todayResult!==null&&<div className="learning-notice"><Trophy size={20}/><strong>{todayResult.correct?'+20 XP ✓':'0 XP'}</strong> · {pick.why}</div>}
-  <p className="learning-hint">{lang==='ru'?'Это игровой результат только в текущем браузере.':lang==='en'?'Demo progress is stored only in this browser.':'Бұл ойындық нәтиже әзірге осы браузерде ғана сақталады.'}</p>
+  {todayResult?.correct&&!xpSaved&&<button type="button" className="learning-secondary" disabled={saving} onClick={saveXp}>{saving?'XP сақталуда...':'XP-ні Firebase-ке сақтау / қайта көру'}</button>}
+  {xpError&&<p className="learning-error" role="alert">{xpError}</p>}
+  <p className="learning-hint">{lang==='ru'?'Ответ хранится в этом браузере, а XP — в Firebase аккаунте (игровые очки).':lang==='en'?'The answer stays in this browser; XP is saved to your Firebase account (game points).':'Жауап осы браузерде сақталады, ал XP Firebase аккаунтына тіркеледі (ойындық ұпай).'}</p>
  </div>;
 }
