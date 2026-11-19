@@ -53,6 +53,45 @@ export async function awardXp({source,date=almatyDay(),questionIndex=null}){
   throw error;
  }
 }
+// Only the owning teacher can settle a closed, class-linked quiz.
+// Unauthenticated guests and incomplete quizzes are deliberately excluded.
+export async function grantQuizXp(quiz,results){
+ if(!db||!auth)throw new Error('Firebase XP қосылмаған.');
+ await auth.authStateReady();
+ const teacher=auth.currentUser;
+ if(!teacher||teacher.isAnonymous||!teacher.emailVerified)throw new Error('Мұғалім аккаунты қажет.');
+ await teacher.getIdToken(true);
+ if(!quiz?.class_id||!quiz?.id||quiz.status!=='closed')throw new Error('Алдымен сынып тестін аяқтаңыз.');
+ const classroom=await getDoc(doc(db,'classrooms',quiz.class_id));
+ if(!classroom.exists()||classroom.data().owner_uid!==teacher.uid)throw new Error('Бұл сынып сізге тиесілі емес.');
+ const quizDoc=await getDoc(doc(db,'quizzes',quiz.id));
+ if(!quizDoc.exists()||quizDoc.data().owner_uid!==teacher.uid||quizDoc.data().class_id!==quiz.class_id||quizDoc.data().status!=='closed')throw new Error('Тест аяқталмаған.');
+ const memberships=await getDocs(query(collection(db,'class_memberships'),where('owner_uid','==',teacher.uid)));
+ const members=new Map(memberships.docs.map(d=>d.data()).filter(m=>m.class_id===quiz.class_id&&m.status==='approved').map(m=>[m.student_uid,m]));
+ const totalQuestions=Array.isArray(quiz.questions)?quiz.questions.length:0;
+ if(!totalQuestions)throw new Error('Тест сұрақтары жоқ.');
+ let awarded=0,skipped=0,failed=0;
+ const date=almatyDay();
+ for(const result of results){
+  const member=members.get(result.uid);
+  const share=result.correct/totalQuestions;
+  if(!member||result.answers!==totalQuestions||share<.8){skipped++;continue}
+  const points=share===1?100:70;
+  const eventId='quiz_'+quiz.id;
+  const classEventRef=doc(classLedger(quiz.class_id),result.uid+'_'+eventId);
+  try{
+   if((await getDoc(classEventRef)).exists()){skipped++;continue}
+   const entry={student_uid:result.uid,event_id:eventId,source:'quiz',points,date,created_at:Date.now(),class_id:quiz.class_id,student_name:String(member.student_name||'Оқушы').slice(0,130),quiz_id:quiz.id};
+   const batch=writeBatch(db);
+   batch.set(doc(ledger(result.uid),eventId),entry);
+   batch.set(classEventRef,entry);
+   await batch.commit();
+   awarded++;
+  }catch(e){failed++;console.warn('Quiz XP grant failed',e?.code||e?.message)}
+ }
+ if(failed)throw new Error('XP-нің '+failed+' жазбасын сақтау мүмкін болмады. Қайта көріңіз. Сәтті жазбалар қайталанбайды.');
+ return {awarded,skipped};
+}
 export function watchXp(uid,onData,onError){
  if(!db||!uid){onData([]);return ()=>{};}
  return onSnapshot(ledger(uid),snap=>onData(snap.docs.map(d=>({id:d.id,...d.data()}))),onError);
