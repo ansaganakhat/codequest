@@ -224,21 +224,58 @@ service cloud.firestore {
             && eventId.matches('^gesture_' + data.date + '_[0-9]{1,2}$'))
         );
     }
+    function validQuizXp(data,uid,eventId) {
+      return activeTeacher()
+        && data.keys().hasOnly([
+          'student_uid','event_id','source','points','date','created_at',
+          'class_id','student_name','quiz_id'
+        ])
+        && data.keys().hasAll([
+          'student_uid','event_id','source','points','date','created_at',
+          'class_id','student_name','quiz_id'
+        ])
+        && data.source == 'quiz'
+        && data.student_uid == uid
+        && data.event_id == eventId
+        && data.quiz_id is string
+        && eventId == 'quiz_' + data.quiz_id
+        && data.class_id is string
+        && data.student_name is string && data.student_name.size() <= 130
+        && (data.points == 70 || data.points == 100)
+        && data.date is string && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && data.created_at is int && data.created_at > 0
+        && teacherOwnsClass(data.class_id)
+        && exists(memberPath(data.class_id,uid))
+        && get(memberPath(data.class_id,uid)).data.status == 'approved'
+        && exists(/databases/$(database)/documents/quizzes/$(data.quiz_id))
+        && get(/databases/$(database)/documents/quizzes/$(data.quiz_id)).data.owner_uid == request.auth.uid
+        && get(/databases/$(database)/documents/quizzes/$(data.quiz_id)).data.class_id == data.class_id
+        && get(/databases/$(database)/documents/quizzes/$(data.quiz_id)).data.status == 'closed';
+    }
     match /xp_events/{uid}/items/{eventId} {
-      allow get, list: if signedIn() && request.auth.uid == uid;
-      allow create: if validXp(request.resource.data,uid,eventId)
-        && request.resource.data.keys().hasOnly(['student_uid','event_id','source','points','date','created_at']);
+      allow get: if (signedIn() && request.auth.uid == uid)
+        || (resource.data.source == 'quiz' && validQuizXp(resource.data,uid,eventId));
+      allow list: if signedIn() && request.auth.uid == uid;
+      allow create: if (validXp(request.resource.data,uid,eventId)
+        && request.resource.data.keys().hasOnly(['student_uid','event_id','source','points','date','created_at']))
+        || validQuizXp(request.resource.data,uid,eventId);
       allow update, delete: if false;
     }
     match /classrooms/{classId}/xp_events/{eventId} {
       allow get, list: if teacherOwnsClass(classId) || admin();
-      allow create: if studentActive() && isClassMember(classId)
+      allow create: if (
+        studentActive() && isClassMember(classId)
         && validXp(request.resource.data,request.auth.uid,request.resource.data.event_id)
         && request.resource.data.keys().hasAll(['class_id','student_name'])
         && request.resource.data.class_id == classId
         && request.resource.data.student_name is string
         && request.resource.data.student_name.size() <= 130
-        && eventId == request.auth.uid + '_' + request.resource.data.event_id;
+        && eventId == request.auth.uid + '_' + request.resource.data.event_id
+      ) || (
+        request.resource.data.class_id == classId
+        && eventId == request.resource.data.student_uid + '_' + request.resource.data.event_id
+        && validQuizXp(request.resource.data,request.resource.data.student_uid,request.resource.data.event_id)
+      );
       allow update, delete: if false;
     }
 
