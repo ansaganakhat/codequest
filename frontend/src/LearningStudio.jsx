@@ -4,6 +4,7 @@ import { Camera, CameraOff, Users, Play, Square, RefreshCcw, ClipboardList, Trop
   Check, X, ArrowRight, Sparkles } from 'lucide-react';
 import QRCode from 'qrcode';
 import {learningApi} from './learning-api.js';
+import {awardXp,classXpRanking,almatyDay} from './xp.js';
 import {firebaseApi} from './firebase-adapter.js';
 import {downloadQuiz} from './quiz-export.js';
 import {countRaisedFingers,isOkGesture} from './finger-count.js';
@@ -83,12 +84,16 @@ function Msg({error}){return error?<p className="learning-error" role="alert">{r
 function Button({children,...rest}){return <button className="learning-button" {...rest}>{children}</button>}
 
 function Classrooms({lang,students=[]}){
+ const [ranking,setRanking]=useState({}),[rankError,setRankError]=useState('');
  const [rows,setRows]=useState([]),[members,setMembers]=useState({}),[name,setName]=useState('6-А'),[grade,setGrade]=useState(6),[letter,setLetter]=useState('А'),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const load=async()=>{
   try{
    const classes=await learningApi.classrooms();
    const all=await Promise.all(classes.map(c=>learningApi.classMembers(c.id)));
    setRows(classes);setMembers(Object.fromEntries(classes.map((c,i)=>[c.id,all[i]])));setError('');
+   const ranks=await Promise.allSettled(classes.map((clazz,i)=>classXpRanking(clazz.id,all[i])));
+   setRanking(Object.fromEntries(classes.map((clazz,i)=>[clazz.id,ranks[i].status==='fulfilled'?ranks[i].value:[]])));
+   setRankError(ranks.some(r=>r.status==='rejected')?'XP рейтингін оқу үшін Firebase Rules жариялануы қажет.':'');
   }catch(e){setError(report(e))}
  };
  useEffect(()=>{load()},[]);
@@ -98,14 +103,14 @@ function Classrooms({lang,students=[]}){
  const copyCode=async value=>{try{await navigator.clipboard.writeText(value);setCopied(value)}catch(e){setError(report(e))}};
  const inviteLink=classId=>window.location.origin+'/?class='+encodeURIComponent(classId);
  const lk={
-  kk:{intro:'Сынып кодын оқушыларға беріңіз. Оқушылар жеке аккаунтпен өтініш жібереді, сіз растағаннан кейін ғана сыныпқа қосылады.',code:'Сынып коды',pending:'Күтуде',approved:'Расталды',rejected:'Қабылданбады',accept:'Растау',reject:'Қабылдамау',members:'Қосылған оқушылар',empty:'Әлі өтініш жоқ',copy:'Көшіру',addStudents:'Оқушы қосу',copyLink:'Шақыру сілтемесін көшіру',inviteHint:'Осы сілтемені оқушыларға жіберіңіз. Оқушы өз аккаунтымен кіріп, сыныпқа өтініш береді. Сіз өтінішті растағаннан кейін ол осы сыныпқа қосылады.',copied:'Көшірілді',existing:'Бұрын тіркелген оқушылар',consent:'Оқушыны қабылдамас бұрын ата-анасының/заңды өкілінің келісімін тексеріңіз.'},
-  ru:{intro:'Передайте код ученикам: они подают заявки через личный аккаунт, вы проверяете и подтверждаете.',code:'Код класса',pending:'Ожидает',approved:'Подтвержден',rejected:'Отклонен',accept:'Подтвердить',reject:'Отклонить',members:'Ученики класса',empty:'Заявок пока нет',copy:'Копировать',addStudents:'Добавить учеников',copyLink:'Копировать ссылку-приглашение',inviteHint:'Отправьте ссылку ученикам. Они входят в свои аккаунты и запрашивают вступление. После вашего подтверждения они присоединятся к этому же классу.',copied:'Скопировано',existing:'Ранее зарегистрированные ученики',consent:'Перед подтверждением проверьте разрешение родителя/законного представителя.'},
-  en:{intro:'Share the class code. Students sign in to request access; approve them before they join.',code:'Class code',pending:'Pending',approved:'Approved',rejected:'Rejected',accept:'Approve',reject:'Reject',members:'Class members',empty:'No join requests yet',copy:'Copy',addStudents:'Add students',copyLink:'Copy invitation link',inviteHint:'Share this link with students. They sign in and request access. Once you approve, they join this existing class.',copied:'Copied',existing:'Existing student records',consent:'Verify parent/guardian permission before approving a student.'}
+  kk:{intro:'Сынып кодын оқушыларға беріңіз. Оқушылар жеке аккаунтпен өтініш жібереді, сіз растағаннан кейін ғана сыныпқа қосылады.',code:'Сынып коды',pending:'Күтуде',approved:'Расталды',rejected:'Қабылданбады',accept:'Растау',reject:'Қабылдамау',members:'Қосылған оқушылар',empty:'Әлі өтініш жоқ',copy:'Көшіру',ranking:'Сыныптың XP рейтингі',addStudents:'Оқушы қосу',copyLink:'Шақыру сілтемесін көшіру',inviteHint:'Осы сілтемені оқушыларға жіберіңіз. Оқушы өз аккаунтымен кіріп, сыныпқа өтініш береді. Сіз өтінішті растағаннан кейін ол осы сыныпқа қосылады.',copied:'Көшірілді',existing:'Бұрын тіркелген оқушылар',consent:'Оқушыны қабылдамас бұрын ата-анасының/заңды өкілінің келісімін тексеріңіз.'},
+  ru:{intro:'Передайте код ученикам: они подают заявки через личный аккаунт, вы проверяете и подтверждаете.',code:'Код класса',pending:'Ожидает',approved:'Подтвержден',rejected:'Отклонен',accept:'Подтвердить',reject:'Отклонить',members:'Ученики класса',empty:'Заявок пока нет',copy:'Копировать',ranking:'Рейтинг класса по XP',addStudents:'Добавить учеников',copyLink:'Копировать ссылку-приглашение',inviteHint:'Отправьте ссылку ученикам. Они входят в свои аккаунты и запрашивают вступление. После вашего подтверждения они присоединятся к этому же классу.',copied:'Скопировано',existing:'Ранее зарегистрированные ученики',consent:'Перед подтверждением проверьте разрешение родителя/законного представителя.'},
+  en:{intro:'Share the class code. Students sign in to request access; approve them before they join.',code:'Class code',pending:'Pending',approved:'Approved',rejected:'Rejected',accept:'Approve',reject:'Reject',members:'Class members',empty:'No join requests yet',copy:'Copy',ranking:'Class XP ranking',addStudents:'Add students',copyLink:'Copy invitation link',inviteHint:'Share this link with students. They sign in and request access. Once you approve, they join this existing class.',copied:'Copied',existing:'Existing student records',consent:'Verify parent/guardian permission before approving a student.'}
  };
  const t=k=>lk[lang]?.[k]||lk.kk[k]||k;
  return <Panel title={T(lang,'classroom')} desc={t('intro')}>
   <form className="learning-form" onSubmit={create}><label>{T(lang,'className')}<input required minLength={3} maxLength={80} value={name} onChange={e=>setName(e.target.value)}/></label><label>{T(lang,'grade')}<select value={grade} onChange={e=>setGrade(Number(e.target.value))}>{Array.from({length:11},(_,i)=><option key={i+1} value={i+1}>{i+1}</option>)}</select></label><label>{T(lang,'letter')}<input maxLength={4} value={letter} onChange={e=>setLetter(e.target.value)}/></label><Button disabled={busy}><Plus size={16}/>{T(lang,'create')}</Button></form>
-  <Msg error={error}/><div className="learning-actions"><button type="button" className="learning-secondary" disabled={busy} onClick={load}><RefreshCcw size={16}/>{lang==='ru'?'Обновить заявки':lang==='en'?'Refresh requests':'Өтініштерді жаңарту'}</button></div><p className="learning-notice"><ShieldCheck size={17}/>{t('consent')}</p>
+  <Msg error={error}/>{rankError&&<p className="learning-hint">{rankError}</p>}<div className="learning-actions"><button type="button" className="learning-secondary" disabled={busy} onClick={load}><RefreshCcw size={16}/>{lang==='ru'?'Обновить заявки':lang==='en'?'Refresh requests':'Өтініштерді жаңарту'}</button></div><p className="learning-notice"><ShieldCheck size={17}/>{t('consent')}</p>
   <div className="teacher-class-grid">{rows.map(c=>{
     const roster=members[c.id]||[],confirmed=roster.filter(m=>m.status==='approved').length;
     const existing=students.filter(st=>st.status==='approved'&&Number(st.school_id)===Number(c.school_id)&&st.grade===c.grade&&(!c.letter||st.class_letter===c.letter));
@@ -116,6 +121,7 @@ function Classrooms({lang,students=[]}){
       {inviting===c.id&&<div className="learning-notice"><p>{t('inviteHint')}</p><div className="class-code-line"><code style={{overflowWrap:'anywhere'}}>{inviteLink(c.id)}</code><button type="button" className="learning-secondary" onClick={()=>copyCode(inviteLink(c.id))}><Copy size={16}/>{copied===inviteLink(c.id)?t('copied'):t('copyLink')}</button></div></div>}
       <h4>{t('members')}</h4>
       {roster.length?<div className="class-members-list">{roster.map(m=><div key={m.id} className="class-member-row"><span><strong>{m.student_name}</strong><small>{t(m.status)}</small></span><div className="class-member-actions">{m.status!=='approved'&&<button type="button" disabled={busy} className="learning-button" onClick={()=>decide(c.id,m.student_uid,'approved')}><Check size={15}/>{t('accept')}</button>}{m.status!=='rejected'&&<button type="button" disabled={busy} className="learning-secondary" onClick={()=>decide(c.id,m.student_uid,'rejected')}><X size={15}/>{t('reject')}</button>}</div></div>)}</div>:<p className="learning-hint">{t('empty')}</p>}
+      {confirmed>0&&<div className="cq-leaderboard"><h4>🏆 {t('ranking')}</h4><ol>{(ranking[c.id]||[]).map(s=><li key={s.uid}>{s.name}<b>{s.xp} XP</b></li>)}</ol></div>}
       {existing.length>0&&<p className="learning-hint">{t('existing')}: {existing.length}</p>}
     </section>
   })}</div>
@@ -306,12 +312,12 @@ export function QuizGuest({lang='kk',roomId=''}){
   </>}<Msg error={error}/></div></div>
 }
 
-function Gesture({lang}){
+function Gesture({lang,user}){
  const video=useRef(null),stream=useRef(null),model=useRef(null),raf=useRef(0),nextTimer=useRef(null);
  const choice=useRef(-1),qIndexRef=useRef(0),selection=useRef(freshGestureSelection());
  const [enabled,setEnabled]=useState(false),[busy,setBusy]=useState(false),[picked,setPicked]=useState(-1);
  const [question,setQuestion]=useState(0),[xp,setXp]=useState(0),[fingerNumber,setFingerNumber]=useState(0);
- const [okVisible,setOkVisible]=useState(false),[notice,setNotice]=useState(''),[error,setError]=useState('');
+ const [okVisible,setOkVisible]=useState(false),[notice,setNotice]=useState(''),[error,setError]=useState(''),[xpMessage,setXpMessage]=useState('');
 
  // The score is awarded once, when fingers disappear for 800 ms or when
  // the student deliberately holds the OK sign. It is never awarded on hover.
@@ -320,7 +326,13 @@ function Gesture({lang}){
   choice.current=n;
   selection.current={...selection.current,preview:n,confirmed:n,missingSince:null};
   setPicked(n);
-  setXp(value=>value+(gentle[qIndexRef.current%gentle.length].correct===n?20:0));
+  const correct=gentle[qIndexRef.current%gentle.length].correct===n;
+  setXp(value=>value+(correct?30:0));
+  if(correct&&user?.role==='student'){
+   awardXp({source:'gesture',date:almatyDay(),questionIndex:qIndexRef.current%gentle.length})
+    .then(r=>setXpMessage(r.awarded?'+30 XP Firebase-ке сақталды':'Бұл сұрақтың XP ұпайы бұрын есептелген.'))
+    .catch(e=>setXpMessage('XP сақталмады: '+(e?.message||String(e))));
+  }
   setNotice(gentle[qIndexRef.current%gentle.length].info);
  };
  const cancelPendingNext=()=>{
@@ -333,7 +345,7 @@ function Gesture({lang}){
   selection.current=freshGestureSelection(fromOk);
   qIndexRef.current+=1;
   setQuestion(value=>value+1);
-  setPicked(-1);setNotice('');setFingerNumber(0);setOkVisible(false);
+  setPicked(-1);setNotice('');setFingerNumber(0);setOkVisible(false);setXpMessage('');
  };
  const stop=()=>{
   cancelAnimationFrame(raf.current);cancelPendingNext();
@@ -494,7 +506,7 @@ function Analytics({lang}){
 }
 export function LearningStudio({section,user,lang='kk',students=[]}){
  if(section==='faceWheel')return <FaceWheel lang={lang}/>;
- if(section==='gestureGame')return <Gesture lang={lang}/>;
+ if(section==='gestureGame')return <Gesture lang={lang} user={user}/>;
  if(section==='tutor')return <Tutor lang={lang}/>;
  const approved=user.role==='teacher'&&user.status==='approved'&&user.email_verified;
  if(!approved)return <Panel title={T(lang,section==='liveQuiz'?'quiz':section==='analytics'?'analytics':'classroom')} desc={T(lang,'approvedOnly')}><p className="learning-notice"><ShieldCheck size={18}/>{T(lang,'approvedOnly')}</p></Panel>;
