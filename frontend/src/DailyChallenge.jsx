@@ -48,7 +48,7 @@ export function DailyChallenge({user,lang='kk'}){
   <div className="daily-score"><span><CalendarCheck size={17}/>{date}</span><span><Trophy size={17}/>{streak} {lang==='ru'?'успешных дней':lang==='en'?'successful days':'сәтті күн'}</span></div>
   <h3>{pick.q}</h3>
   <div className="daily-options">{pick.options.map((o,i)=><button key={i} disabled={todayResult!==null} className={todayResult!==null&&pick.answer===i?'correct':todayResult?.answer===i?'wrong':''} onClick={()=>submit(i)}>{String.fromCharCode(65+i)}. {o}</button>)}</div>
-  {todayResult!==null&&<div className="learning-notice"><Trophy size={20}/><strong>{todayResult.correct?'+20 XP ✓':'0 XP'}</strong> · {pick.why}</div>}
+  {todayResult!==null&&<div className="learning-notice"><Trophy size={20}/><strong>{todayResult.correct?(xpSaved?'+20 XP ✓':'+20 XP (сақталмаған)'):'0 XP'}</strong> · {pick.why}</div>}
   {todayResult?.correct&&!xpSaved&&<button type="button" className="learning-secondary" disabled={saving} onClick={saveXp}>{saving?'XP сақталуда...':'XP-ні Firebase-ке сақтау / қайта көру'}</button>}
   {xpError&&<p className="learning-error" role="alert">{xpError}</p>}
   <p className="learning-hint">{lang==='ru'?'Ответ хранится в этом браузере, а XP — в Firebase аккаунте (игровые очки).':lang==='en'?'The answer stays in this browser; XP is saved to your Firebase account (game points).':'Жауап осы браузерде сақталады, ал XP Firebase аккаунтына тіркеледі (ойындық ұпай).'}</p>
