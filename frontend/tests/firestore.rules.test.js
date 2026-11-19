@@ -222,6 +222,23 @@ test('Firestore rules: students join only after a teacher approves, class quizze
    await assertSucceeds(b.commit());
    await assertFails(setDoc(doc(student,'quizzes',quizId,'responses','student1_1'),{participant_uid:'student1',question_index:1,option_index:1,alias:'Student One',created_at:ts+4}));
   });
+  await t.test('Teacher may settle class-linked quiz XP only after completion',async()=>{
+   const reward={student_uid:'student1',event_id:'quiz_'+quizId,source:'quiz',points:100,
+     date:'2026-11-19',created_at:ts,class_id:classId,student_name:'Student One',quiz_id:quizId};
+   const wallet=doc(teacher,'xp_events','student1','items',reward.event_id);
+   const classReward=doc(teacher,'classrooms',classId,'xp_events','student1_'+reward.event_id);
+   await assertFails(setDoc(doc(other,'xp_events','student1','items',reward.event_id),reward));
+   await assertFails(setDoc(doc(student,'xp_events','student1','items',reward.event_id),reward));
+   const batch=writeBatch(teacher);
+   batch.set(wallet,reward);
+   batch.set(classReward,reward);
+   await assertSucceeds(batch.commit());
+   await assertSucceeds(getDoc(doc(student,'xp_events','student1','items',reward.event_id)));
+   await assertSucceeds(getDoc(wallet));
+   await assertFails(getDoc(doc(other,'xp_events','student1','items',reward.event_id)));
+   await assertFails(updateDoc(wallet,{points:999}));
+   await assertFails(setDoc(doc(teacher,'xp_events','student2','items',reward.event_id),{...reward,student_uid:'student2'}));
+  });
   await t.test('Numeric join code is unique, mapped to teacher quiz, and cannot be hijacked',async()=>{
     const quizNewId='NewCodeQuiz012345678';
     const number='7654321';
