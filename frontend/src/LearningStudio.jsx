@@ -422,7 +422,7 @@ function Gesture({lang,user}){
  const guidance=chosen
   ?(lang==='ru'?'Ответ '+letter+' зафиксирован. Для следующего вопроса покажите 👌 OK или нажмите кнопку.':lang==='en'?'Answer '+letter+' confirmed. Show 👌 OK or press Next.':'Жауап '+letter+' бекітілді. Келесі сұраққа өту үшін 👌 OK көрсетіңіз немесе батырманы басыңыз.')
   :picked>=0
-   ?(lang==='ru'?'Предварительно '+letter+'. Можно менять количество пальцев. Уберите руку на 0,8 сек. для подтверждения или удерживайте 👌 OK.':lang==='en'?'Preview '+letter+'. Change fingers freely; remove your hand for 0.8s to confirm, or hold 👌 OK.':'Алдын ала '+letter+' белгіленді. Саусақ санын өзгерте беріңіз; қолды 0,8 секунд алып кетсеңіз таңдалады немесе 👌 OK ұстап бекітіңіз.')
+   ?(lang==='ru'?'Предварительно '+letter+'. Удерживайте новое число пальцев 0,4 сек. для смены ответа. Переход к 👌 OK сохраняет последний устойчивый выбор.':lang==='en'?'Preview '+letter+'. Hold a new finger count for 0.4s to change your answer. Switching to 👌 OK keeps the last stable answer.':'Алдын ала '+letter+' белгіленді. Жаңа нұсқаны таңдау үшін саусақты 0,4 секунд ұстап тұрыңыз. 👌 OK қимылына ауысқанда соңғы таңдау сақталады.')
    :(lang==='ru'?'Покажите 1–4 пальца: 1=A, 2=B, 3=C, 4=D.':lang==='en'?'Show 1–4 fingers: 1=A, 2=B, 3=C, 4=D.':'1–4 саусақ көрсетіңіз: 1=A, 2=B, 3=C, 4=D.');
  return <Panel title="Gesture Game" desc={T(lang,'gestureDesc')}>
   <p className="learning-notice"><ShieldCheck size={17}/>{T(lang,'privateInfo')}</p>
@@ -445,7 +445,7 @@ function Gesture({lang,user}){
   </div>
   {enabled&&<div className="learning-actions"><button className="learning-secondary" onClick={stop}><CameraOff size={17}/>{T(lang,'stop')}</button></div>}
   <p className="learning-notice">
-   {lang==='ru'?'Думайте сколько нужно: пока пальцы видны, выбор можно менять. После исчезновения руки ответ подтвердится через 0,8 сек. Жест 👌 OK (большой и указательный сомкнуты, остальные три открыты) подтверждает ответ и переводит к следующему вопросу.':lang==='en'?'Take your time: keep changing fingers while your hand is visible. Removing it for 0.8s confirms. Hold 👌 OK (thumb and index touching, other three open) to confirm and move to the next question.':'Ойлануға шектеу жоқ: қол көрініп тұрғанда таңдауды өзгерте аласыз. Қол 0,8 секунд көрінбесе, жауап бекітіледі. 👌 OK (бас бармақ пен сұқ саусақ түйісіп, қалған үшеуі ашық) жестін ұстасаңыз, жауап бекітіліп, келесі сұраққа өтеді.'}
+   {lang==='ru'?'Думайте сколько нужно: для смены варианта удерживайте новое число пальцев 0,4 сек. После исчезновения руки ответ подтвердится через 0,8 сек. Жест 👌 OK (большой и указательный сомкнуты, остальные три открыты) подтверждает ответ и переводит к следующему вопросу.':lang==='en'?'Take your time: hold a new finger count for 0.4s to change the answer. Removing your hand for 0.8s confirms. Hold 👌 OK (thumb and index touching, other three open) to confirm and move to the next question.':'Ойлануға шектеу жоқ: жаңа саусақ санын 0,4 секунд ұстасаңыз таңдау өзгереді. Қол 0,8 секунд көрінбесе, жауап бекітіледі. 👌 OK (бас бармақ пен сұқ саусақ түйісіп, қалған үшеуі ашық) жестін ұстасаңыз, жауап бекітіліп, келесі сұраққа өтеді.'}
    {enabled&&<strong> {okVisible?'👌 OK':fingerNumber+' ☝️'}</strong>}
   </p>
   <Msg error={error}/>
